@@ -1,6 +1,6 @@
 <template>
   <div class="back-to-layout">
-    <el-container>
+    <el-container class="main-container">
       <sideBar/>
       <el-container>
         <el-header>
@@ -21,6 +21,8 @@ import navBar from './navBar.vue'
 <style lang="scss" scoped>
 .back-to-layout{
     height: 100vh;
-
-}
+    .main-container{
+      height: 100%;
+    }
+} 
 </style>
