@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <el-button type="primary">按钮</el-button>
 </template>
