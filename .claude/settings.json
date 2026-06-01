@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm dev)",
+      "Bash(pnpm build)",
+      "Bash(pnpm preview)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm remove *)",
+      "Bash(pnpm install)",
+      "Bash(vue-tsc *)",
+      "Bash(git *)"
+    ]
+  }
+}
