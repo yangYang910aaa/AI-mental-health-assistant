@@ -17,6 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 </script>
 <style lang="scss" scoped>
 .page-head{
+    margin-bottom: 15px;
     display: flex;
     align-items: center;
     justify-content: space-between;
