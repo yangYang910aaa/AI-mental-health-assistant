@@ -1,13 +1,15 @@
 <template>
-  <el-aside width="260px">
+  <el-aside :width="isCollapsed ? '60px' : '260px'">
     <el-menu
       :default-active="route.path"
       router
       class="menu"
+      :collapse="isCollapsed"
+      :collapse-transition="false"
     >
       <div class="brand">
         <el-image :src="logoUrl" alt="Logo" style="width: 50px; height: 50px" />
-        <div class="info-card">
+        <div class="info-card" v-show="!isCollapsed">
           <h1 class="brand-name">AI心理健康助手</h1>
           <p class="brand-description">管理后台</p>
         </div>
@@ -22,9 +24,14 @@
 
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
+import {useAdminStore} from '@/stores/admin'
+import {computed} from 'vue'
 
 const route = useRoute()
 const router = useRouter()
+const adminStore=useAdminStore()
+
+const isCollapsed=computed(()=>adminStore.isCollapsed)
 
 // /back 下的子路由
 const routes = router.options.routes[0].children

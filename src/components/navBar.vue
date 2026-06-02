@@ -1,7 +1,7 @@
 <template>
     <div class="nav-bar">
         <div class="nav-left flex-box">
-            <el-button>
+            <el-button @click="handleCollapse">
                 <el-icon><Expand /></el-icon>
             </el-button>
             <p class="page-title">导航栏</p>
@@ -26,6 +26,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ArrowDown, Expand } from '@element-plus/icons-vue'
+import {useAdminStore} from '@/stores/admin'
+
+const adminStore=useAdminStore()
+//点击切换折叠栏状态
+const handleCollapse=()=>{
+    adminStore.toggleCollapsed()
+}
 
 // 用户头像 URL，后续接入登录后从接口或 store 获取
 const userAvatar = ref('https://api.dicebear.com/9.x/initials/svg?seed=Admin')
@@ -40,7 +47,7 @@ const handleCommand = (command: string) => {
 
 <style lang="scss" scoped>
 .nav-bar{
-    height: 64px;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -54,7 +61,7 @@ const handleCommand = (command: string) => {
         justify-content: center;
     }
     .page-title{
-        margin-left: 10px;
+        margin-left: 15px;
         margin-right: 20px;
         font-size: 22px;
         font-weight: bold;

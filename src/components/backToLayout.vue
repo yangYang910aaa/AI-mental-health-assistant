@@ -3,11 +3,11 @@
     <el-container class="main-container">
       <sideBar/>
       <el-container>
-        <el-header>
+        <el-header >
           <navBar/>
         </el-header>
         <el-main>
-          <router-view/>
+          <router-view class="content-container"/>
         </el-main>
       </el-container>
     </el-container>
@@ -23,6 +23,15 @@ import navBar from './navBar.vue'
     height: 100vh;
     .main-container{
       height: 100%;
+      .el-header{
+        height: 70px !important;
+      }
+      .content-container{
+        margin:-10px 0 0 -10px;
+        padding: 20px;
+        background: white;
+        min-height: calc(100vh - 70px);
+      }
     }
 } 
 </style>
