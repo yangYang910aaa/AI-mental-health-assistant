@@ -50,14 +50,16 @@ const props = defineProps({
   },
 })
 
-// 根据 comp 返回对应的组件
-const isComp=(comp:string)=>{
-    return{
-        input:'el-input',
-        select:'el-select',
-    }[comp]
+// comp 类型 → 组件名字符串映射，后续扩展直接加 key
+const COMP_MAP: Record<string, string> = {
+  input: 'el-input',
+  select: 'el-select',
 }
 
+const isComp = (comp: string): string => {
+  return COMP_MAP[comp] ?? COMP_MAP.input
+}
+//定义子组件触发的事件
 const emit = defineEmits(['search'])
 
 // 给每个 formItem 补上 el-col 的响应式栅格配置
@@ -65,7 +67,8 @@ const formItemWithCol = computed(() =>
   props.formItem.map(
     (item): FormItem => ({
       ...item,
-      col: { xs: 24, sm: 12, md: 8, lg: 6, xl: 6 },
+      //不同屏幕宽度下的栅格配置，默认24列
+      col: item.col ?? { xs: 24, sm: 12, md: 8, lg: 6, xl: 6 },
     })
   )
 )

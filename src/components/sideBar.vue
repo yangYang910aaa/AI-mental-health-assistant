@@ -26,21 +26,24 @@
 import { useRoute, useRouter } from 'vue-router'
 import {useAdminStore} from '@/stores/admin'
 import {computed} from 'vue'
+import { ROUTE_NAMES } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
 const adminStore=useAdminStore()
 
+// 侧边栏是否折叠
 const isCollapsed=computed(()=>adminStore.isCollapsed)
 
-// /back 下的子路由
-const routes = router.options.routes[0].children
+// /backLayout 下的子路由
+const backRoute=router.options.routes.find(item=>item.name===ROUTE_NAMES.backLayout)
+const routes = backRoute?.children || []
 
 // logo 路径
 const logoUrl = new URL('@/assets/logo.svg', import.meta.url).href
 
 // 拼接子路由完整路径，供 el-menu 的 index 做跳转
-const resolvePath = (childPath: string) => `/back/${childPath}`
+const resolvePath = (childPath: string) => `${backRoute?.path}/${childPath}`
 </script>
 
 <style lang="scss" scoped>

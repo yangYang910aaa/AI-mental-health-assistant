@@ -26,8 +26,10 @@ import navBar from './navBar.vue'
       .el-header{
         height: 70px !important;
       }
+      .el-main {
+        padding: 10px;
+      }
       .content-container{
-        margin:-10px 0 0 -10px;
         padding: 20px;
         background: white;
         min-height: calc(100vh - 70px);

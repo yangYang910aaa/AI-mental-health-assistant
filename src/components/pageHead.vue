@@ -1,6 +1,6 @@
 <template>
     <div class="page-head">
-        <p class="page-title">{{props.title}}</p>
+        <p class="page-title">{{title}}</p>
         <div class="action-btn">
             <slot name="buttons"></slot>
         </div>

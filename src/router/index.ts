@@ -2,6 +2,7 @@ import { createRouter,createWebHistory } from "vue-router";
 
 // 路由名称常量，方便全局引用和跳转
 export const ROUTE_NAMES = {
+  backLayout:'backLayout',//父路由名称
   dashboard: 'dashboard',
   knowledge: 'knowledge',
   consultations: 'consultations',
@@ -13,9 +14,10 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
-      path: '/back',
+      path: '/backLayout',
+      name: ROUTE_NAMES.backLayout,
       component: () => import('@/components/backToLayout.vue'),
-      redirect: '/back/dashboard',
+      redirect: '/backLayout/dashboard',
       children: [
         {
           path: 'dashboard',

@@ -24,7 +24,6 @@
     </div>
 </template>
 <script setup lang="ts">
-import { ref } from 'vue'
 import { ArrowDown, Expand } from '@element-plus/icons-vue'
 import {useAdminStore} from '@/stores/admin'
 
@@ -34,13 +33,16 @@ const handleCollapse=()=>{
     adminStore.toggleCollapsed()
 }
 
-// 用户头像 URL，后续接入登录后从接口或 store 获取
-const userAvatar = ref('https://api.dicebear.com/9.x/initials/svg?seed=Admin')
+// 用户头像 URL，后续接入登录后替换为 store 中的动态地址
+const userAvatar = 'https://api.dicebear.com/9.x/initials/svg?seed=Admin'
 
 const handleCommand = (command: string) => {
   if (command === 'logout') {
     // TODO: 清除 token，跳转登录页
     console.log('退出登录')
+  }
+  if (command === 'profile') {
+    // TODO: 跳转个人中心页
   }
 }
 </script>
