@@ -12,14 +12,14 @@ Vue 3 + TypeScript + Vite 管理后台前端项目。
 | 包管理 | pnpm | 10.33 |
 | UI 库 | Element Plus | ^2.14 |
 | 状态管理 | Pinia（setup function 风格） | ^3.0 |
-| 路由 | Vue Router（hash history） | 4.6 |
+| 路由 | Vue Router（HTML5 history） | 4.6 |
 | CSS | SCSS（`lang="scss" scoped`） | — |
 | 图标 | `@element-plus/icons-vue`（全局注册） | ^2.3 |
 
 ## 常用命令
 
 ```bash
-pnpm dev          # 启动开发服务器
+pnpm dev          # 启动开发服务器（默认 http://localhost:5173）
 pnpm build        # 类型检查 + 构建（vue-tsc -b && vite build）
 pnpm preview      # 预览构建产物
 pnpm add <pkg>    # 安装依赖
@@ -30,7 +30,7 @@ pnpm add <pkg>    # 安装依赖
 ```
 mental-health/
 ├── index.html                     # 入口 HTML
-├── vite.config.ts                 # Vite 配置（插件、@ 别名）
+├── vite.config.ts                 # Vite 配置（Vue 插件 + @ 别名 + /api 代理）
 ├── tsconfig.json                  # TS 项目引用入口
 ├── tsconfig.app.json              # 应用代码 TS 配置
 ├── tsconfig.node.json             # Node 侧 TS 配置
@@ -43,8 +43,13 @@ mental-health/
     ├── assets/                    # 编译时资源（logo.svg 等）
     ├── types/
     │   └── router.d.ts            # 扩展 RouteMeta 接口，声明 title、icon
+    ├── utils/
+    │   └── request.ts             # Axios 封装（拦截器、状态码处理、BusinessError）
+    ├── api/
+    │   └── auth.ts                # 登录/注册/退出 API
     ├── stores/
-    │   └── admin.ts               # Pinia store：侧边栏折叠状态
+    │   ├── admin.ts               # Pinia store：侧边栏折叠状态
+    │   └── user.ts                # Pinia store：用户信息、登录状态、setUser/clearUser
     ├── router/
     │   └── index.ts               # 路由配置（命名路由 + 懒加载 + ROUTE_NAMES 常量）
     ├── components/
@@ -52,8 +57,11 @@ mental-health/
     │   ├── sideBar.vue            # 左侧菜单（el-menu router 模式 + 折叠切换）
     │   ├── navBar.vue             # 顶部导航栏（折叠按钮 + 用户下拉菜单）
     │   ├── pageHead.vue           # 页面标题栏（标题 + action 插槽）
-    │   └── tableSearch.vue        # 通用搜索表单（动态表单项 + 查询/重置）
+    │   ├── tableSearch.vue        # 通用搜索表单（动态表单项 + 查询/重置）
+    │   └── authLayout.vue         # 登录/注册布局（渐变背景 + 装饰浮动圆）
     └── views/
+        ├── login.vue              # 登录页
+        ├── register.vue           # 注册页（开发中）
         ├── dashboard.vue          # 数据分析
         ├── knowledge.vue          # 知识文章
         ├── consultations.vue      # 咨询记录
@@ -68,6 +76,12 @@ mental-health/
 import Foo from '@/components/Foo.vue'  // 推荐
 import Foo from '../components/Foo.vue'  // 也行
 ```
+
+## 代理配置
+
+Vite dev server 将 `/api/*` 请求代理到 `http://localhost:3000/api/*`，配置在 `vite.config.ts` 的 `server.proxy` 中。
+
+前端通过相对路径 `/api` 作为 axios baseURL，开发时走代理，生产时同域部署或 Nginx 反代。
 
 ## TypeScript 配置要点
 
@@ -99,14 +113,28 @@ router.push({ name: ROUTE_NAMES.dashboard })
 
 ### 结构
 ```
-/backLayout（父路由；redirect → dashboard）
-├── dashboard   # 数据分析
-├── knowledge   # 知识文章
-├── consultations  # 咨询记录
-└── emotional   # 情感分析
+/back（父路由；redirect → dashboard）
+├── dashboard     # 数据分析
+├── knowledge     # 知识文章
+├── consultations # 咨询记录
+└── emotional     # 情感分析
+
+/auth（父路由）
+├── login         # 登录
+└── register      # 注册
 ```
 
 全部使用 `() => import(...)` 懒加载。
+
+## Axios 请求封装
+
+`src/utils/request.ts` — 类型安全的 axios 封装：
+
+- **单泛型调用**：`request.post<LoginResult>('/auth/login', params)` 只需传一个泛型
+- **状态码全覆盖**：200/401/403/400/404/500/502/503/504 各有对应处理
+- **401 防抖**：并发 401 只跳转一次登录页
+- **BusinessError**：携带 `code` 字段，调用方可 `if (error.code === 403)` 做分支
+- **登录页路径**：`/auth/login`（常量 `LOGIN_PATH`）
 
 ## Pinia Store
 
@@ -141,7 +169,18 @@ router.push({ name: ROUTE_NAMES.dashboard })
 - 新页面放 `src/views/`，复用组件放 `src/components/`
 - import 之间用空行分隔，vue / 第三方 / 内部 逻辑分组
 - SCSS 嵌套不超过 3 层
+- SCSS 风格约定（参照 `authLayout.vue`、`login.vue`、`register.vue`）：
+  - 以组件根元素类名为嵌套入口，子元素写在其内部
+  - `&.modifier` 表示同元素追加类名；`&:hover` / `&:active` 表示伪类
+  - `:deep(.el-xxx)` 穿透 scoped，修改 Element Plus 内部样式
+  - `@keyframes` 放在 SCSS 嵌套之外，不和选择器耦合
+  - 每个样式区块用 `// ============ 区块名 ============` 注释分隔
+  - 关键 CSS 属性加行内注释说明设计意图
 - `!important` 仅用于覆盖第三方 UI 库默认样式（Element Plus），其他地方避免
+
+## 路由路径变更记录
+
+原路径 `/backLayout` → `/back`，`/authLayout` → `/auth`。日志、侧边栏注释、跳转链接均已同步更新。
 
 ## Git 仓库
 

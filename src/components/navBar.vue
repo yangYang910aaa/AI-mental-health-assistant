@@ -7,10 +7,10 @@
             <p class="page-title">导航栏</p>
         </div>
         <div class="nav-right flex-box">
-            <el-dropdown @command="handleCommand">
+            <el-dropdown :teleported="false" @command="handleCommand">
                 <div class="flex-box">
                     <el-avatar :src="userAvatar" size="default" />
-                    <p class="user-name">admin</p>
+                    <p class="user-name">{{ userStore.displayName || '未登录' }}</p>
                     <el-icon><ArrowDown /></el-icon>
                 </div>
                 <template #dropdown>
@@ -24,22 +24,30 @@
     </div>
 </template>
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ArrowDown, Expand } from '@element-plus/icons-vue'
-import {useAdminStore} from '@/stores/admin'
+import { useAdminStore } from '@/stores/admin'
+import { useUserStore } from '@/stores/user'
+import { logout } from '@/api/auth'
 
-const adminStore=useAdminStore()
+const adminStore = useAdminStore()
+const userStore = useUserStore()
+
+// 用户头像——优先用后端返回的，没有则用默认生成图
+const userAvatar = computed(() =>
+  userStore.userInfo?.avatar
+    || 'https://api.dicebear.com/9.x/initials/svg?seed=Admin'
+)
+
 //点击切换折叠栏状态
-const handleCollapse=()=>{
+const handleCollapse = () => {
     adminStore.toggleCollapsed()
 }
 
-// 用户头像 URL，后续接入登录后替换为 store 中的动态地址
-const userAvatar = 'https://api.dicebear.com/9.x/initials/svg?seed=Admin'
-
 const handleCommand = (command: string) => {
   if (command === 'logout') {
-    // TODO: 清除 token，跳转登录页
-    console.log('退出登录')
+    userStore.clearUser()
+    logout()
   }
   if (command === 'profile') {
     // TODO: 跳转个人中心页
@@ -69,6 +77,17 @@ const handleCommand = (command: string) => {
         font-weight: bold;
         color: #1f2937;
     }
+    // ==================== 用户下拉菜单 ====================
+    // teleported=false，菜单在组件树内，用 :deep 穿透 scoped
+    :deep(.el-popper) {
+      min-width: 120px !important;
+      min-height: 72px !important; // 2 个 item
+      transition: none !important; // 去掉 zoom-in 动画，消除挤压闪烁
+    }
+
+    // 下拉区域抑制全局 :focus-visible 的蓝框
+    .nav-right :deep(:focus-visible) {
+      outline: none !important;
+    }
 }
 </style>
-

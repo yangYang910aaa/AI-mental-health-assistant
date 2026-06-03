@@ -2,11 +2,16 @@ import { createRouter,createWebHistory } from "vue-router";
 
 // 路由名称常量，方便全局引用和跳转
 export const ROUTE_NAMES = {
-  backLayout:'backLayout',//父路由名称
+  // 后台路由
+  backLayout: 'backL',
   dashboard: 'dashboard',
   knowledge: 'knowledge',
   consultations: 'consultations',
   emotional: 'emotional',
+  // 认证路由
+  authLayout: 'authLayout',
+  login: 'login',
+  register: 'register',
 } as const
 
 // 定义路由
@@ -14,10 +19,10 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
-      path: '/backLayout',
+      path: '/back',
       name: ROUTE_NAMES.backLayout,
       component: () => import('@/components/backToLayout.vue'),
-      redirect: '/backLayout/dashboard',
+      redirect: '/back/knowledge',
       children: [
         {
           path: 'dashboard',
@@ -45,6 +50,25 @@ const router = createRouter({
         },
       ],
     },
+    {
+      path:'/auth',
+      name:'auth',
+      component:()=>import('@/components/authLayout.vue'),
+      children:[
+        {
+          path:'login',
+          name:'login',
+          component:()=>import('@/views/login.vue'),
+          meta:{title:'登录'}
+        },
+        {
+          path:'register',
+          name:'register',
+          component:()=>import('@/views/register.vue'),
+          meta:{title:'注册'}
+        }
+      ]
+    }
   ],
 })
 export default router
