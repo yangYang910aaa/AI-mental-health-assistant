@@ -1,16 +1,22 @@
 <template>
-    <el-form :model="formData" ref="formRef">
-        <el-row :gutter="24">         
+    <el-form :model="formData" ref="formRef" @keyup.enter="onEnter" @submit.prevent>
+        <el-row :gutter="24">
             <template v-for="item in formItemWithCol" :key="item.prop">
                 <el-col v-bind="item.col" >
                     <el-form-item :label="item.label" :prop="item.prop">
-                        <component v-model="formData[item.prop]" :is="isComp(item.comp)" :placeholder="item.placeholder" >    
+                        <component
+                          v-model="formData[item.prop]"
+                          :is="isComp(item.comp)"
+                          :placeholder="item.placeholder"
+                          :clearable="item.comp === 'input'"
+                          @change="item.comp === 'select' && submitForm()"
+                        >
                             <template v-if="item.comp==='select'">
                                 <el-option label="全部" value=""/>
-                                <el-option 
-                                v-for="option in item.options" 
-                                :key="option.value" 
-                                :label="option.label" 
+                                <el-option
+                                v-for="option in item.options"
+                                :key="option.value"
+                                :label="option.label"
                                 :value="option.value"/>
                             </template>
                         </component>
@@ -19,7 +25,6 @@
             </template>
         </el-row>
         <el-row>
-            <el-button type="primary" @click="submitForm">查询</el-button>
             <el-button type="danger" @click="resetForm">重置</el-button>
         </el-row>
     </el-form>
@@ -42,7 +47,7 @@ interface FormItem {
   placeholder: string
   [key: string]: any  // 其他属性（options、col、multiple…）自由传递，不报类型错误
 }
-//接收父组件传递的 formItem 数组
+//接收父组件传递的 formItem 数组,props是一个响应式对象,里面包裹了formItem数组
 const props = defineProps({
   formItem: {
     type: Array as PropType<FormItem[]>,
@@ -57,7 +62,7 @@ const COMP_MAP: Record<string, string> = {
 }
 
 const isComp = (comp: string): string => {
-  return COMP_MAP[comp] ?? COMP_MAP.input
+  return COMP_MAP[comp] ?? COMP_MAP.input//如果comp不在COMP_MAP中，默认使用input组件
 }
 //定义子组件触发的事件
 const emit = defineEmits(['search'])
@@ -72,6 +77,7 @@ const formItemWithCol = computed(() =>
     })
   )
 )
+
 // 提交表单
 const submitForm=()=>{
     emit('search',formData)
@@ -82,6 +88,11 @@ const resetForm = () => {
     //先重置表单，再触发查询
     formRef.value?.resetFields()
     emit('search',formData)
+}
+
+// 输入框按回车触发查询（select 用 @change 即时触发，不走这里）
+const onEnter = () => {
+  submitForm()
 }
 </script>
 
