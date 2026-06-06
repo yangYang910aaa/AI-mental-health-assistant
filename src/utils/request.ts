@@ -110,13 +110,13 @@ http.interceptors.request.use(
 // ==================== 响应拦截器 ====================
 
 http.interceptors.response.use(
-  // ———————————— HTTP 2xx 分支 ————————————
-  // 后端约定：业务状态码在 body.code 里，即使业务失败 HTTP 也返回 200。
-  // 所以这里先解包 body，再按业务 code 分发：200 放行 / 401 跳登录 / 403 提示 / 其余 reject。
+  // ———————————— 成功分支：HTTP 2xx ————————————
+  // 后端直接使用 HTTP 状态码表达业务结果：
+  // 200 → 成功（body.code 一定为 200）
+  // 401/403/400/404/500 等 → 走下方失败分支
   (response: AxiosResponse<ApiResponse>) => {
     const body = response.data
 
-    // 防御：响应体为空或格式异常
     if (!body || typeof body !== 'object' || !('code' in body)) {
       ElMessage.error('响应数据格式异常')
       return Promise.reject(new BusinessError(-1, '响应数据格式异常'))
@@ -124,40 +124,31 @@ http.interceptors.response.use(
 
     const { code, data, message } = body
 
-    // 200 → 只返回 data，调用方不用解包
+    // 业务成功：只返回 data，调用方不用解包
     // 此处断言为 AxiosResponse 以通过 TS 类型检查，
     // 真正的类型收敛由下方 request.get/post 的 `as Promise<T>` 完成
     if (code === 200) return data as unknown as AxiosResponse
 
-    // 401 → 登录过期 / token 无效，清 token 并跳转登录
-    if (code === 401) return handleUnauthorized(message)
-
-    // 403 → 有 token 但无权限访问该接口，不跳转，不消 token
-    if (code === 403) {
-      ElMessage.error(message || '暂无权限')
-      return Promise.reject(new BusinessError(code, message || '暂无权限'))
-    }
-
-    // 其他业务错误（400 / 404 / …）
+    // 非预期的业务 code（理论上不会被触发，后端应用 HTTP 状态码表达错误）
     ElMessage.error(message || '请求失败')
     return Promise.reject(new BusinessError(code, message || '请求失败'))
   },
 
-  // ———————————— HTTP 非 2xx / 网络错误 / 超时 ————————————
-  // 请求根本没到业务层：HTTP 401/403 由网关返回，或超时、断网等。
+  // ———————————— 失败分支：HTTP 非 2xx / 网络错误 / 超时 ————————————
+  // 所有异常都由 HTTP 状态码表达，这里是唯一的错误处理入口
   (error) => {
     const status = error?.response?.status
 
-    // 401 走统一的未授权处理
+    // 401 → 登录过期 / token 无效，清 token + 跳转
     if (status === 401) return handleUnauthorized()
 
-    // 403 → 同业务层逻辑，弹提示，不跳转
+    // 403 → 有权限但不够，弹提示，不跳转
     if (status === 403) {
       ElMessage.error(resolveHttpErrorMessage(error))
       return Promise.reject(new BusinessError(403, '暂无权限'))
     }
 
-    // 其他一切错误：拼出合适文案，弹提示
+    // 其他一切错误
     const msg = resolveHttpErrorMessage(error)
     ElMessage.error(msg)
     return Promise.reject(error)

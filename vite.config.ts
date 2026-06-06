@@ -63,7 +63,7 @@ function mockApiPlugin(): Plugin {
                 id: 1,
                 username: isEmail ? username : displayName,
                 nickname: isEmail ? displayName.split('@')[0] : displayName,
-                avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${displayName}`,
+                avatar: '', // 空值 → el-avatar 展示首字兜底
                 roles: ['admin'],
               },
             },
@@ -74,36 +74,77 @@ function mockApiPlugin(): Plugin {
       })
 
       // ==================== 文章列表 ====================
-      server.middlewares.use('/api/articles/list', async (req, res, next) => {
+      server.middlewares.use('/api/articles/list', (req, res, next) => {
+        if (req.method !== 'GET') return next()
+
+        // 解析 query string
+        const url = new URL(req.url!, 'http://localhost')
+        const title = url.searchParams.get('title') || undefined
+        const category = url.searchParams.get('category') || undefined
+        const status = url.searchParams.get('status') || undefined
+        const page = Number(url.searchParams.get('page')) || 1
+        const pageSize = Number(url.searchParams.get('pageSize')) || 10
+
+        // 筛选
+        let filtered = mockArticles
+        if (title) {
+          filtered = filtered.filter((a) => a.title.includes(title))
+        }
+        if (category) {
+          filtered = filtered.filter((a) => a.category === category)
+        }
+        if (status) {
+          filtered = filtered.filter((a) => a.status === status)
+        }
+
+        // 分页
+        const total = filtered.length
+        const start = (page - 1) * pageSize
+        const list = filtered.slice(start, start + pageSize)
+
+        json(res, {
+          code: 200, message: 'ok',
+          data: { list, total },
+        })
+      })
+
+      // ==================== 创建文章 ====================
+      server.middlewares.use('/api/articles', async (req, res, next) => {
         if (req.method !== 'POST') return next()
 
         try {
-          const { title, category, status, page = 1, pageSize = 10 } = JSON.parse(await readBody(req))
-
-          // 筛选
-          let filtered = mockArticles
-          if (title) {
-            filtered = filtered.filter((a) => a.title.includes(title))
+          const body = JSON.parse(await readBody(req))
+          const newArticle = {
+            id: mockArticles.length + 1,
+            title: body.title || '',
+            content: body.content || '',
+            category: body.category || 'mental-health',
+            author: '系统管理员',
+            summary: body.summary || '',
+            coverImage: body.coverImage || '',
+            tags: body.tags || [],
+            status: 'draft' as const,
+            views: 0,
+            createdAt: new Date().toISOString().split('T')[0],
           }
-          if (category) {
-            filtered = filtered.filter((a) => a.category === category)
-          }
-          if (status) {
-            filtered = filtered.filter((a) => a.status === status)
-          }
+          mockArticles.unshift(newArticle)
 
-          // 分页
-          const total = filtered.length
-          const start = (page - 1) * pageSize
-          const list = filtered.slice(start, start + pageSize)
-
-          json(res, {
-            code: 200, message: 'ok',
-            data: { list, total },
-          })
+          json(res, { code: 200, message: '创建成功', data: newArticle })
         } catch {
           json(res, { code: 400, message: '请求格式错误', data: null })
         }
+      })
+
+      // ==================== 文件上传 ====================
+      server.middlewares.use('/api/file/upload', async (req, res, next) => {
+        if (req.method !== 'POST') return next()
+
+        // mock：直接返回一个假 URL，不真实存储文件
+        json(res, {
+          code: 200,
+          message: 'ok',
+          data: { url: 'https://picsum.photos/400/240' },
+        })
       })
     },
   }

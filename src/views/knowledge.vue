@@ -2,7 +2,7 @@
   <div>
     <pageHead title="知识文章">
       <template #buttons>
-        <el-button type="primary">新增</el-button>
+        <el-button type="primary" @click="dialogVisible = true">新增</el-button>
       </template>
     </pageHead>
 
@@ -28,7 +28,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="views" label="阅读量" width="100" sortable />
-      <el-table-column prop="createdAt" label="创建时间" width="120" sortable />
+      <el-table-column prop="createdAt" label="发布时间" width="120" sortable />
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link>编辑</el-button>
@@ -54,6 +54,7 @@
         @size-change="handleSizeChange"
       />
     </div>
+    <articleDialog v-model:visible="dialogVisible" :categories="CATEGORIES" :tags="TAGS" @success="onArticleCreated" />
   </div>
 </template>
 
@@ -63,7 +64,8 @@ import pageHead from '@/components/pageHead.vue'
 import tableSearch from '@/components/tableSearch.vue'
 import { fetchArticles, CATEGORIES } from '@/api/knowledge'
 import type { Article } from '@/api/knowledge'
-
+import articleDialog from '@/components/articleDialog.vue'
+import { TAGS } from '@/api/knowledge'
 // ==================== 搜索表单 ====================
 
 const formItem = [
@@ -87,8 +89,9 @@ const formItem = [
 
 const loading = ref(false)
 const tableData = ref<Article[]>([])
+const dialogVisible = ref(false)
 
-// 搜索参数
+//// 搜索参数
 const searchParams = reactive({
   title: '',
   category: '',
@@ -139,6 +142,14 @@ const loadData = async () => {
   }
 }
 
+//处理搜索表单提交
+// 文章创建成功后刷新列表
+const onArticleCreated = () => {
+  dialogVisible.value = false
+  loadData()
+}
+
+// 处理搜索表单提交
 const handleSearch = (formData: { title: string; category: string; status: string }) => {
   searchParams.title = formData.title
   searchParams.category = formData.category
@@ -147,6 +158,7 @@ const handleSearch = (formData: { title: string; category: string; status: strin
   loadData()
 }
 
+//处理分页大小改变
 const handleSizeChange = () => {
   pagination.page = 1
   loadData()
@@ -157,7 +169,7 @@ const handleSizeChange = () => {
 onMounted(() => {
   loadData()
 })
-</script>
+</script> 
 
 <style lang="scss" scoped>
 // ==================== 表格美化 ====================

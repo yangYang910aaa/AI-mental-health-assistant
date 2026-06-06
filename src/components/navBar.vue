@@ -9,7 +9,7 @@
         <div class="nav-right flex-box">
             <el-dropdown :teleported="false" @command="handleCommand">
                 <div class="flex-box">
-                    <el-avatar :src="userAvatar" size="default" />
+                    <el-avatar :src="userAvatar" >{{ userInitial }}</el-avatar>
                     <p class="user-name">{{ userStore.displayName || '未登录' }}</p>
                     <el-icon><ArrowDown /></el-icon>
                 </div>
@@ -33,11 +33,9 @@ import { logout } from '@/api/auth'
 const adminStore = useAdminStore()
 const userStore = useUserStore()
 
-// 用户头像——优先用后端返回的，没有则用默认生成图
-const userAvatar = computed(() =>
-  userStore.userInfo?.avatar
-    || 'https://api.dicebear.com/9.x/initials/svg?seed=Admin'
-)
+// 用户头像——后端返回就用图片，没有则 el-avatar 展示首字
+const userAvatar = computed(() => userStore.userInfo?.avatar || '')
+const userInitial = computed(() => userStore.displayName?.charAt(0) || '管')
 
 //点击切换折叠栏状态
 const handleCollapse = () => {

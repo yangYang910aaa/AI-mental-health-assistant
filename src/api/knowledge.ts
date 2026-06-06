@@ -39,6 +39,17 @@ export interface ArticleListResult {
   total: number
 }
 
+
+/** 创建文章参数 */
+export interface CreateArticleParams {
+  title: string
+  content: string
+  category: string
+  summary?: string
+  coverImage?: string
+  tags?: string[]
+}
+
 // ==================== 常量 ====================
 
 /** 文章分类——目前先写死，后续可改为从接口拉取 */
@@ -49,11 +60,24 @@ export const CATEGORIES: ArticleCategory[] = [
   { label: '人际关系', value: 'relationships' },
 ]
 
+/** 文章标签 —— 目前先写死，后续可改为从接口拉取 */
+export const TAGS: string[] = [
+  '情绪管理','焦虑','抑郁','压力','睡眠',
+  '冥想','正念','放松','心理健康','自我成长',
+  '人际关系','工作压力','学习方法','生活技巧'
+]
+
+
 // ==================== API ====================
 
 /** 获取文章列表 */
 export const fetchArticles = (params: ArticleListParams) =>
-  request.post<ArticleListResult>('/articles/list', params)
+  request.get<ArticleListResult>('/articles/list', { params })
+
+
+/** 创建文章 */
+export const createArticle = (params: CreateArticleParams) =>
+  request.post<Article>('/articles', params)
 
 /** 删除文章 */
 export const deleteArticle = (id: number) =>
