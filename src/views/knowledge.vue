@@ -2,7 +2,7 @@
   <div>
     <pageHead title="知识文章">
       <template #buttons>
-        <el-button type="primary" @click="dialogVisible = true">新增</el-button>
+        <el-button type="primary" @click="openAddDialog">新增</el-button>
       </template>
     </pageHead>
 
@@ -20,9 +20,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="author" label="作者" width="100" />
-      <el-table-column label="状态" width="90"> 
+      <el-table-column label="状态" width="90">
         <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)" >
+          <el-tag :type="statusTagType(row.status)"  effect="dark" round>
             {{ statusLabel(row.status) }}
           </el-tag>
         </template>
@@ -31,14 +31,15 @@
       <el-table-column prop="createdAt" label="发布时间" width="120" sortable />
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link>编辑</el-button>
+          <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
           <el-button
             :type="row.status === 'published' ? 'warning' : 'success'"
             link
+            @click="handleStatusChange(row)"
           >
             {{ row.status === 'published' ? '下线' : '发布' }}
           </el-button>
-          <el-button type="danger" link>删除</el-button>
+          <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -54,15 +55,21 @@
         @size-change="handleSizeChange"
       />
     </div>
-    <articleDialog v-model:visible="dialogVisible" :categories="CATEGORIES" :tags="TAGS" @success="onArticleCreated" />
+    <articleDialog
+    v-model:visible="dialogVisible"
+    :article="currentArticle"
+    :categories="CATEGORIES"
+    :tags="TAGS"
+    @success="onArticleCreated" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import pageHead from '@/components/pageHead.vue'
 import tableSearch from '@/components/tableSearch.vue'
-import { fetchArticles, CATEGORIES } from '@/api/knowledge'
+import { fetchArticles, CATEGORIES, updateArticle, deleteArticle } from '@/api/knowledge'
 import type { Article } from '@/api/knowledge'
 import articleDialog from '@/components/articleDialog.vue'
 import { TAGS } from '@/api/knowledge'
@@ -123,7 +130,7 @@ const categoryMap = computed(() => {
   return map
 })
 
-// ==================== 数据加载 ====================
+// ==================== 列表数据加载 ====================
 
 const loadData = async () => {
   loading.value = true
@@ -142,7 +149,6 @@ const loadData = async () => {
   }
 }
 
-//处理搜索表单提交
 // 文章创建成功后刷新列表
 const onArticleCreated = () => {
   dialogVisible.value = false
@@ -158,10 +164,48 @@ const handleSearch = (formData: { title: string; category: string; status: strin
   loadData()
 }
 
-//处理分页大小改变
+// 处理分页大小改变
 const handleSizeChange = () => {
   pagination.page = 1
   loadData()
+}
+
+// ==================== 编辑文章 ====================
+const currentArticle = ref<Article | null>(null)
+
+const handleEdit = (row: Article) => {
+  currentArticle.value = row
+  dialogVisible.value = true
+}
+
+// 新增时清空 currentArticle
+const openAddDialog = () => {
+  currentArticle.value = null
+  dialogVisible.value = true
+}
+
+// ==================== 发布 / 下线 ====================
+const handleStatusChange = async (row: Article) => {
+  const newStatus=row.status==='published'?'offline':'published'
+  await updateArticle(row.id,{status:newStatus})
+  ElMessage.success(newStatus==='published'?'已发布':'已下线')
+  loadData()
+}
+
+// ==================== 删除文章 ====================
+const handleDelete = async (row: Article) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除「${row.title}」吗？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    await deleteArticle(row.id)
+    ElMessage.success('删除成功')
+    loadData()
+  } catch {
+    // 用户取消或错误
+  }
 }
 
 // ==================== 初始化 ====================
@@ -169,13 +213,13 @@ const handleSizeChange = () => {
 onMounted(() => {
   loadData()
 })
-</script> 
+</script>
 
 <style lang="scss" scoped>
 // ==================== 表格美化 ====================
 
 :deep(.el-table) {
-  // 整体圆角
+  // 整体圆角【【
   border-radius: 6px;
   overflow: hidden;
 

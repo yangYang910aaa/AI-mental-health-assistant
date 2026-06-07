@@ -9,10 +9,12 @@ export type ArticleStatus = 'published' | 'draft' | 'offline'
 export interface Article {
   id: number
   title: string
+  content: string
   category: string
   author: string
-  cover?: string
+  coverImage?: string
   summary: string
+  tags?: string[]
   status: ArticleStatus
   views: number
   createdAt: string
@@ -48,7 +50,11 @@ export interface CreateArticleParams {
   summary?: string
   coverImage?: string
   tags?: string[]
+  status?: ArticleStatus  // 不传则默认 draft
 }
+
+/** 更新文章参数 */
+export type UpdateArticleParams = Partial<CreateArticleParams>
 
 // ==================== 常量 ====================
 
@@ -72,13 +78,16 @@ export const TAGS: string[] = [
 
 /** 获取文章列表 */
 export const fetchArticles = (params: ArticleListParams) =>
-  request.get<ArticleListResult>('/articles/list', { params })
-
+  request.get<ArticleListResult>('/knowledge/articles', { params })
 
 /** 创建文章 */
 export const createArticle = (params: CreateArticleParams) =>
-  request.post<Article>('/articles', params)
+  request.post<Article>('/knowledge/articles', params)
+ 
+/** 更新文章 */
+export const updateArticle = (id: number, params: UpdateArticleParams) =>
+  request.put<Article>(`/knowledge/articles/${id}`, params)
 
 /** 删除文章 */
 export const deleteArticle = (id: number) =>
-  request.delete<void>(`/articles/${id}`)
+  request.delete<void>(`/knowledge/articles/${id}`)

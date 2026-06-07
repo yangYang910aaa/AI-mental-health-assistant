@@ -1,6 +1,6 @@
 <template>
     <el-dialog
-        title="编辑文章"
+        :title="formData.id ? '编辑文章' : '新增文章'"
         v-model="dialogVisible"
         width="50%"
         @close="handleClose"
@@ -62,7 +62,7 @@
         <template #footer>
             <el-button type="primary" @click="previewVisible=!previewVisible">{{ previewVisible?'隐藏预览':'预览效果' }}</el-button>
             <el-button @click="handleClose">关闭</el-button>
-            <el-button @click="handleSubmit" :loading="loading">创建文章</el-button>
+            <el-button @click="handleSubmit" :loading="loading" type="danger">{{ formData.id ? '更新' : '创建' }}</el-button>
         </template>
     </el-dialog>
 </template>
@@ -71,7 +71,8 @@ import { ref, reactive, computed, shallowRef, watch } from 'vue'
 import type { PropType } from 'vue'
 import type { FormInstance, UploadRequestOptions } from 'element-plus'
 import type { ArticleCategory } from '@/api/knowledge'
-import { createArticle } from '@/api/knowledge'
+import { createArticle, updateArticle } from '@/api/knowledge'
+import type { Article } from '@/api/knowledge'
 import { ElMessage } from 'element-plus'
 import { uploadFile } from '@/api/file'
 
@@ -81,6 +82,7 @@ import '@wangeditor/editor/dist/css/style.css'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 
 // 接收父组件传递的 visible（控制 dialog 显隐）和分类列表、标签列表
+// article 有值 → 编辑模式，无值 → 新增模式
 const props = defineProps({
     visible: {
         type: Boolean,
@@ -93,7 +95,11 @@ const props = defineProps({
     tags:{
         type:Array as PropType<string[]>,
         default:()=>[]
-    }
+    },
+    article: {
+        type: Object as PropType<Article | null>,
+        default: null,
+    },
 })
 //向父组件传递dialogVisible属性:更新visible
 const emit=defineEmits(['update:visible', 'success'])
@@ -245,14 +251,40 @@ const wordCount = computed(() => {
   return text.length
 })
 
-// 关闭弹窗时清空编辑器内容
+
+// ==================== 弹窗打开时回填 / 清空表单数据 ====================
 watch(dialogVisible, (val) => {
   if (!val) {
+    contentHtml.value = ''
+    return  // 关闭时不处理表单，handleClose 已 resetFields
+  }
+
+  const a = props.article
+  if (a) {
+    // 编辑模式：回填已有数据
+    formData.id = String(a.id)
+    formData.title = a.title
+    formData.category = a.category
+    formData.summary = a.summary || ''
+    formData.tags = a.tags || []
+    formData.coverImage = a.coverImage || ''
+    coverUrl.value = a.coverImage || ''
+    contentHtml.value = a.content || ''
+  } else {
+    // 新增模式：清空所有
+    formData.id = ''
+    formData.title = ''
+    formData.content = ''
+    formData.category = ''
+    formData.summary = ''
+    formData.tags = []
+    formData.coverImage = ''
+    coverUrl.value = ''
     contentHtml.value = ''
   }
 })
 
-// 提交表单
+// ==================== 提交表单 ====================
 const loading = ref(false)
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
@@ -260,15 +292,29 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
-    await createArticle({
-      title: formData.title,
-      content: formData.content,
-      category: formData.category,
-      summary: formData.summary,
-      coverImage: formData.coverImage,
-      tags: formData.tags,
-    })
-    ElMessage.success('创建成功')
+    if (formData.id) {
+      // 编辑模式
+      await updateArticle(Number(formData.id), {
+        title: formData.title,
+        content: formData.content,
+        category: formData.category,
+        summary: formData.summary,
+        coverImage: formData.coverImage,
+        tags: formData.tags,
+      })
+      ElMessage.success('保存成功')
+    } else {
+      // 新增模式
+      await createArticle({
+        title: formData.title,
+        content: formData.content,
+        category: formData.category,
+        summary: formData.summary,
+        coverImage: formData.coverImage,
+        tags: formData.tags,
+      })
+      ElMessage.success('创建成功')
+    }
     emit('success')
     handleClose()
   } catch {

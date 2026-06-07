@@ -73,66 +73,79 @@ function mockApiPlugin(): Plugin {
         }
       })
 
-      // ==================== 文章列表 ====================
-      server.middlewares.use('/api/articles/list', (req, res, next) => {
-        if (req.method !== 'GET') return next()
+      // ==================== 知识文章：CRUD ====================
+      server.middlewares.use('/api/knowledge/articles', async (req, res, next) => {
+        // GET 列表
+        if (req.method === 'GET') {
+          const url = new URL(req.url!, 'http://localhost')
+          const title = url.searchParams.get('title') || undefined
+          const category = url.searchParams.get('category') || undefined
+          const status = url.searchParams.get('status') || undefined
+          const page = Number(url.searchParams.get('page')) || 1
+          const pageSize = Number(url.searchParams.get('pageSize')) || 10
 
-        // 解析 query string
-        const url = new URL(req.url!, 'http://localhost')
-        const title = url.searchParams.get('title') || undefined
-        const category = url.searchParams.get('category') || undefined
-        const status = url.searchParams.get('status') || undefined
-        const page = Number(url.searchParams.get('page')) || 1
-        const pageSize = Number(url.searchParams.get('pageSize')) || 10
+          let filtered = mockArticles
+          if (title) filtered = filtered.filter((a) => a.title.includes(title))
+          if (category) filtered = filtered.filter((a) => a.category === category)
+          if (status) filtered = filtered.filter((a) => a.status === status)
 
-        // 筛选
-        let filtered = mockArticles
-        if (title) {
-          filtered = filtered.filter((a) => a.title.includes(title))
+          const total = filtered.length
+          const start = (page - 1) * pageSize
+          const list = filtered.slice(start, start + pageSize)
+
+          return json(res, { code: 200, message: 'ok', data: { list, total } })
         }
-        if (category) {
-          filtered = filtered.filter((a) => a.category === category)
-        }
-        if (status) {
-          filtered = filtered.filter((a) => a.status === status)
-        }
 
-        // 分页
-        const total = filtered.length
-        const start = (page - 1) * pageSize
-        const list = filtered.slice(start, start + pageSize)
+        // PUT 更新
+        if (req.method === 'PUT') {
+          try {
+            const id = Number(req.url!.split('/').pop()?.split('?')[0])
+            const idx = mockArticles.findIndex((a) => a.id === id)
+            if (idx === -1) return json(res, { code: 404, message: '文章不存在', data: null })
 
-        json(res, {
-          code: 200, message: 'ok',
-          data: { list, total },
-        })
-      })
-
-      // ==================== 创建文章 ====================
-      server.middlewares.use('/api/articles', async (req, res, next) => {
-        if (req.method !== 'POST') return next()
-
-        try {
-          const body = JSON.parse(await readBody(req))
-          const newArticle = {
-            id: mockArticles.length + 1,
-            title: body.title || '',
-            content: body.content || '',
-            category: body.category || 'mental-health',
-            author: '系统管理员',
-            summary: body.summary || '',
-            coverImage: body.coverImage || '',
-            tags: body.tags || [],
-            status: 'draft' as const,
-            views: 0,
-            createdAt: new Date().toISOString().split('T')[0],
+            const body = JSON.parse(await readBody(req))
+            mockArticles[idx] = { ...mockArticles[idx], ...body }
+            return json(res, { code: 200, message: '更新成功', data: mockArticles[idx] })
+          } catch {
+            return json(res, { code: 400, message: '请求格式错误', data: null })
           }
-          mockArticles.unshift(newArticle)
-
-          json(res, { code: 200, message: '创建成功', data: newArticle })
-        } catch {
-          json(res, { code: 400, message: '请求格式错误', data: null })
         }
+
+        // POST 创建
+        if (req.method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req))
+            const newArticle = {
+              id: mockArticles.length + 1,
+              title: body.title || '',
+              content: body.content || '',
+              category: body.category || 'mental-health',
+              author: '系统管理员',
+              summary: body.summary || '',
+              coverImage: body.coverImage || '',
+              tags: body.tags || [],
+              status: 'draft' as const,
+              views: 0,
+              createdAt: new Date().toISOString().split('T')[0],
+            }
+            mockArticles.unshift(newArticle)
+            return json(res, { code: 200, message: '创建成功', data: newArticle })
+          } catch {
+            return json(res, { code: 400, message: '请求格式错误', data: null })
+          }
+        }
+
+        // DELETE 删除
+        if (req.method === 'DELETE') {
+          const id = Number(req.url!.split('/').pop()?.split('?')[0])
+          const idx = mockArticles.findIndex((a) => a.id === id)
+          if (idx === -1) return json(res, { code: 404, message: '文章不存在', data: null })
+
+          mockArticles.splice(idx, 1)
+          return json(res, { code: 200, message: '删除成功', data: null })
+        }
+
+        next()
       })
 
       // ==================== 文件上传 ====================
