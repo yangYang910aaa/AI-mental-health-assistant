@@ -74,7 +74,6 @@ import type { ArticleCategory } from '@/api/knowledge'
 import { createArticle, updateArticle } from '@/api/knowledge'
 import type { Article } from '@/api/knowledge'
 import { ElMessage } from 'element-plus'
-import { uploadFile } from '@/api/file'
 
 // 富文本编辑器
 import type { IDomEditor, IToolbarConfig, IEditorConfig } from '@wangeditor/editor'
@@ -245,12 +244,15 @@ const editorConfig: Partial<IEditorConfig> = {
       // 自定义上传：接入项目的 uploadFile，
       // 后端好了之后图片就能直接存入服务器
       async customUpload(file: File, insertFn: (url: string) => void) {
-        try {
-          const result = await uploadFile(file)
-          insertFn(result.url)
-        } catch {
+        // mock：同样用 FileReader 转 data URL，后端好了换 uploadFile
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          insertFn(e.target?.result as string)
+        }
+        reader.onerror = () => {
           ElMessage.error('图片上传失败')
         }
+        reader.readAsDataURL(file)
       },
     },
   },

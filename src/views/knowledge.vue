@@ -85,8 +85,8 @@ import { fetchArticles, CATEGORIES, updateArticle, deleteArticle } from '@/api/k
 import type { Article } from '@/api/knowledge'
 import articleDialog from '@/components/articleDialog.vue'
 import { TAGS } from '@/api/knowledge'
-// ==================== 搜索表单 ====================
 
+// ==================== 搜索表单 ====================
 const formItem = [
   { label: '文章标题', prop: 'title', comp: 'input', placeholder: '请输入文章标题' },
   {
@@ -124,7 +124,6 @@ const pagination = reactive({
   total: 0,
 })
 
-// ==================== 工具 ====================
 
 // ==================== 状态映射 ====================
 //字段映射：status->label，新状态=>保留原名
@@ -167,7 +166,7 @@ const onArticleCreated = () => {
   loadData()
 }
 
-// 处理搜索表单提交
+// 处理搜索表单
 const handleSearch = (formData: { title: string; category: string; status: string }) => {
   searchParams.title = formData.title
   searchParams.category = formData.category
@@ -231,7 +230,7 @@ onMounted(() => {
 // ==================== 表格美化 ====================
 
 :deep(.el-table) {
-  // 整体圆角【【
+  // 整体圆角
   border-radius: 6px;
   overflow: hidden;
 
