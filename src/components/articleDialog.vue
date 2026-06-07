@@ -178,24 +178,35 @@ const beforeUpload = (file: File) => {
 const handleUploadRequest = async (options: UploadRequestOptions) => {
   uploading.value = true
 
-  // ① 先用 FileReader 生成本地预览——选什么图立刻显示什么图
+  // mock 模式：FileReader 转 data URL 直接用于预览和存储。
+  // 后端就绪后，把 reader 这块替换为下面的 uploadFile 调用即可。
   const reader = new FileReader()
   reader.onload = (e) => {
-    coverUrl.value = e.target?.result as string
+    const url = e.target?.result as string
+    coverUrl.value = url
+    formData.coverImage = url
+    uploading.value = false
+    options.onSuccess({ url })
+  }
+  reader.onerror = () => {
+    uploading.value = false
+    ElMessage.error('图片读取失败')
+    options.onError(new Error('读取失败') as any)
   }
   reader.readAsDataURL(options.file)
 
-  // ② 调上传接口，拿到的 URL 作为表单提交值（后端真实存储地址）
-  try {
-    const result = await uploadFile(options.file)
-    formData.coverImage = result.url
-    options.onSuccess(result)
-  } catch {
-    ElMessage.error('封面上传失败')
-    options.onError(new Error('上传失败') as any)
-  } finally {
-    uploading.value = false
-  }
+  // —— 真实后端上传（下面注释留着，后端好了启用）——
+  // try {
+  //   const result = await uploadFile(options.file)
+  //   coverUrl.value = result.url
+  //   formData.coverImage = result.url
+  //   options.onSuccess(result)
+  // } catch {
+  //   ElMessage.error('封面上传失败')
+  //   options.onError(new Error('上传失败') as any)
+  // } finally {
+  //   uploading.value = false
+  // }
 }
 
 // 移除封面图片
