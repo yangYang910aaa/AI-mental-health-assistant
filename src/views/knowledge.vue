@@ -26,22 +26,22 @@
         </template>
       </el-table-column>
       <el-table-column prop="title" label="文章标题" min-width="220" show-overflow-tooltip fixed="left" />
-      <el-table-column label="分类" width="130">
+      <el-table-column label="分类" width="130" align="center">
         <template #default="{ row }">
           {{ categoryMap[row.category] || row.category }}
         </template>
       </el-table-column>
-      <el-table-column prop="author" label="作者" width="120" />
-      <el-table-column label="状态" width="100">
+      <el-table-column prop="author" label="作者" width="120" align="center" />
+      <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)"  effect="dark" round>
             {{ statusLabel(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="views" label="阅读量" width="110" sortable />
-      <el-table-column prop="createdAt" label="发布时间" width="130" sortable />
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column prop="views" label="阅读量" width="110" sortable align="center" />
+      <el-table-column prop="createdAt" label="发布时间" width="130" sortable align="center" />
+      <el-table-column label="操作" width="220" fixed="right" align="center">
         <template #default="{ row }">
           <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
           <el-button
