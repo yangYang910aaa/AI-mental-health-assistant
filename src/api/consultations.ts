@@ -16,8 +16,8 @@ export interface Consultation {
   userId: number
   userNickName: string        // 表格展示为"对话用户"
   aiName: string              // AI 助手名称
-  lastMessageContent: string  // 对话记录下半部分
-  lastMessageTime: string     // 对话记录上半部分，拼在 aiName 后面
+  firstMessage: string        //用户发起的首条消息
+  lastMessageTime: string     // 对话记录的结束时间
   messageCount: number
   startedAt: string           // 咨询时间（单独一列）
   messages?: Message[]        // 对话详情（仅详情接口返回）

@@ -13,7 +13,7 @@
               <span class="conversation-ai">{{ row.aiName }}</span>
               <span class="conversation-time">{{ row.lastMessageTime }}</span>
             </div>
-            <p class="conversation-preview">{{ row.lastMessageContent }}</p>
+            <p class="conversation-preview">{{ row.firstMessage }}</p>
           </div>
         </template>
       </el-table-column>

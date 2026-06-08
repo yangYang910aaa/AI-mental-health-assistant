@@ -40,7 +40,7 @@ function mockApiPlugin(): Plugin {
 
   // mock 咨询记录数据
   const userNicknames = ['小明', '阿花', '大刘', '小美', '老张', '静静', '阿杰', '小七', '木子', '圆圆']
-  const lastMessageContents = [
+  const firstMessages = [
     '最近工作压力特别大，经常失眠到凌晨三四点，白天又没精神，感觉整个人都快撑不住了...',
     '我和男朋友分手一个月了，还是走不出来，每天都会偷偷看他朋友圈，心里特别难受。',
     '孩子初三了，整天把自己关在房间里打游戏，成绩一落千丈，我说什么都不听，真的很焦虑。',
@@ -65,15 +65,15 @@ function mockApiPlugin(): Plugin {
       userId: 1000 + (idx + 1),
       userNickName: userNicknames[idx],
       aiName: aiNames[idx],
-      lastMessageContent: lastMessageContents[idx],
+      firstMessage: firstMessages[idx],
       lastMessageTime: d.toISOString().replace('T', ' ').slice(0, 19),
-      messageCount: Math.floor(Math.random() * 9) + 4, // 4~12 条，与 generateMockMessages 上限一致
+      messageCount: Math.floor(Math.random() * 9) + 4, // 4~12 条
       startedAt: new Date(d.getTime() - (Math.floor(Math.random() * 3600000) * 6)).toISOString().replace('T', ' ').slice(0, 19),
     }
   })
 
   // 为详情接口生成 mock 对话消息
-  const generateMockMessages = (consultationId: number, msgCount: number) => {
+  const generateMockMessages = (consultationId: number, msgCount: number, firstContent: string) => {
     const userMessages = [
       '最近总是睡不好，晚上躺在床上脑子停不下来，翻来覆去到凌晨才睡着。',
       '我也试过听轻音乐，但感觉没什么用，反而更清醒了。',
@@ -91,20 +91,57 @@ function mockApiPlugin(): Plugin {
       '4-7-8 呼吸法很简单：鼻子吸气 4 秒，憋气 7 秒，嘴巴缓慢呼气 8 秒，重复 4 次。',
       '不客气！坚持一周看看效果，如果还是不行我们再聊。记住，偶尔的失眠不代表什么，别太焦虑。',
     ]
+    // 用户连发时的额外消息（AI 还没来得及回，用户又发了一条）
+    const doubleTextMessages = [
+      '对了，我昨天说的那个情况今天好像更严重了...',
+      '还有一件事我刚才忘了说，最近心情特别烦躁。',
+      '另外，我发现自己最近总是莫名其妙想哭。',
+      '补充一下，这种情况一般发生在晚上。',
+    ]
 
-    const count = Math.min(msgCount, 12) // 最多 12 条，避免太长
+    const count = Math.min(msgCount, 12) // 最多 12 条
+    const isOdd = count % 2 === 1
+
+    // 奇数 → 模拟用户连发：在某处多插入一条用户消息
+    const doubleIdx = isOdd
+      ? 1 + 2 * Math.floor(Math.random() * Math.floor(count / 2)) // 随机奇数位，替换该处的 AI 回复
+      : -1
+
     const messages: Array<{ id: number; sender: 'user' | 'assistant'; content: string; time: string }> = []
     const baseTime = new Date()
     baseTime.setHours(baseTime.getHours() - consultationId)
 
     for (let i = 0; i < count; i++) {
       const t = new Date(baseTime.getTime() + i * (60_000 + Math.random() * 120_000))
+
+      // 决定 sender
+      let sender: 'user' | 'assistant'
+      if (i === 0) {
+        sender = 'user'
+      } else if (i === doubleIdx) {
+        sender = 'user' // 用户连发，打断了 AI 的回复
+      } else if (isOdd && i > doubleIdx) {
+        sender = (i - 1) % 2 === 0 ? 'user' : 'assistant' // 连发后序列整体后移
+      } else {
+        sender = i % 2 === 0 ? 'user' : 'assistant' // 正常交替
+      }
+
+      // 决定 content
+      let content: string
+      if (i === 0) {
+        content = firstContent
+      } else if (i === doubleIdx) {
+        content = doubleTextMessages[Math.floor(Math.random() * doubleTextMessages.length)]
+      } else {
+        content = sender === 'user'
+          ? userMessages[(i * 3 + consultationId) % userMessages.length]
+          : assistantMessages[(i * 5 + consultationId) % assistantMessages.length]
+      }
+
       messages.push({
         id: i + 1,
-        sender: i % 2 === 0 ? 'user' : 'assistant',
-        content: i % 2 === 0
-          ? userMessages[i % userMessages.length]
-          : assistantMessages[i % assistantMessages.length],
+        sender,
+        content,
         time: t.toISOString().replace('T', ' ').slice(0, 19),
       })
     }
@@ -231,8 +268,9 @@ function mockApiPlugin(): Plugin {
           if (id) {
             const record = mockConsultations.find((c) => c.id === id)
             if (!record) return json(res, { code: 404, message: '咨询记录不存在', data: null })
-            const messages = generateMockMessages(id, record.messageCount)
-            return json(res, { code: 200, message: 'ok', data: { ...record, messages, messageCount: messages.length } })
+            const messages = generateMockMessages(id, record.messageCount, record.firstMessage)
+            const lastMsg = messages[messages.length - 1]
+            return json(res, { code: 200, message: 'ok', data: { ...record, messages, messageCount: messages.length, lastMessageTime: lastMsg.time } })
           }
 
           const page = Number(url.searchParams.get('page')) || 1
