@@ -558,6 +558,105 @@ function mockApiPlugin(): Plugin {
         next()
       })
 
+      // ==================== 仪表盘 ====================
+      server.middlewares.use('/api/dashboard', async (req, res, next) => {
+        if (req.method !== 'GET') return next()
+
+        const url = new URL(req.url!, 'http://localhost')
+        const range = url.searchParams.get('range') || '30d'
+
+        // 基于已有 mock 数据计算统计指标
+        const totalEmotional = mockEmotionals.length
+        const totalConsultations = mockConsultations.length
+        const todayStr = new Date().toISOString().split('T')[0]
+
+        const todayEmotional = mockEmotionals.filter((e) => e.createdAt.startsWith(todayStr)).length
+        const todayConsultations = mockConsultations.filter((c) => c.startedAt.startsWith(todayStr)).length
+
+        const avgScore = Math.round((mockEmotionals.reduce((s, e) => s + e.moodScore, 0) / totalEmotional) * 10) / 10
+        const highRiskCount = mockEmotionals.filter((e) => e.aiAnalysis.riskLevel === '高风险').length
+
+        // 活跃用户：最近 7 天有过情绪记录的用户
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+        const activeUserIds = new Set(
+          mockEmotionals
+            .filter((e) => new Date(e.createdAt) >= sevenDaysAgo)
+            .map((e) => e.userId),
+        )
+
+        // 情绪分布
+        const emotionDistMap: Record<string, number> = {}
+        mockEmotionals.forEach((e) => {
+          emotionDistMap[e.moodLabel] = (emotionDistMap[e.moodLabel] || 0) + 1
+        })
+
+        // 风险分布
+        const riskDistMap: Record<string, number> = { '低风险': 0, '中风险': 0, '高风险': 0 }
+        mockEmotionals.forEach((e) => {
+          riskDistMap[e.aiAnalysis.riskLevel] = (riskDistMap[e.aiAnalysis.riskLevel] || 0) + 1
+        })
+
+        // 趋势数据生成：按 range 决定总天数和聚合粒度
+        const totalDays = range === '7d' ? 7 : range === '90d' ? 90 : 30
+        const groupSize = range === '7d' ? 1 : range === '90d' ? 7 : 1 // 90 天按周聚合
+
+        const generateTrend = (base: number, variance: number) => {
+          const raw: { date: string; value: number }[] = []
+          for (let i = 0; i < totalDays; i++) {
+            const d = new Date()
+            d.setDate(d.getDate() - (totalDays - 1 - i))
+            raw.push({
+              date: d.toISOString().split('T')[0],
+              value: Math.max(0, base + Math.floor(Math.random() * variance * 2) - variance),
+            })
+          }
+
+          if (groupSize === 1) return raw
+
+          // 按周聚合
+          const grouped: { date: string; value: number }[] = []
+          for (let i = 0; i < raw.length; i += groupSize) {
+            const chunk = raw.slice(i, i + groupSize)
+            const avgVal = Math.round((chunk.reduce((s, d) => s + d.value, 0) / chunk.length) * 10) / 10
+            grouped.push({ date: chunk[0].date, value: avgVal })
+          }
+          return grouped
+        }
+
+        const moodTrendRaw = generateTrend(Math.round(avgScore * 10) / 10, 2)
+        // 日粒度时做平滑
+        if (groupSize === 1 && moodTrendRaw.length >= 3) {
+          for (let i = 2; i < moodTrendRaw.length; i++) {
+            moodTrendRaw[i].value = Math.round(
+              Math.min(10, Math.max(1, moodTrendRaw[i].value * 0.3 + moodTrendRaw[i - 1].value * 0.4 + moodTrendRaw[i - 2].value * 0.3)) * 10,
+            ) / 10
+          }
+        }
+
+        const moodTrend = moodTrendRaw
+        const consultationTrend = generateTrend(14, 7)
+        const userActivityTrend = generateTrend(activeUserIds.size, 10)
+
+        json(res, {
+          code: 200,
+          message: 'ok',
+          data: {
+            totalUsers: 10,
+            activeUsers: activeUserIds.size,
+            emotionalLogs: { total: totalEmotional, todayNew: todayEmotional },
+            consultations: { total: totalConsultations, todayNew: todayConsultations },
+            avgMoodScore: avgScore,
+            highRiskCount,
+            moodTrend,
+            emotionDistribution: Object.entries(emotionDistMap).map(([label, count]) => ({ label, count })),
+            riskDistribution: Object.entries(riskDistMap).map(([label, count]) => ({ label, count })),
+            consultationTrend,
+            userActivityTrend,
+          },
+        })
+      })
+
       // ==================== 文件上传 ====================
       server.middlewares.use('/api/file/upload', async (req, res, next) => {
         if (req.method !== 'POST') return next()

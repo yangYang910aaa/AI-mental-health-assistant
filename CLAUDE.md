@@ -56,6 +56,7 @@ src/
 │   ├── knowledge.ts                 # 文章 CRUD + 分类/标签常量
 │   ├── consultations.ts             # 咨询记录 CRUD + Message 类型
 │   ├── emotional.ts                 # 情绪日志 CRUD + MoodLabel/AiAnalysis 类型
+│   ├── dashboard.ts                 # 数据分析：KPI + 趋势 + 分布
 │   └── file.ts                      # 文件上传
 │
 ├── stores/
@@ -79,7 +80,7 @@ src/
 └── views/
     ├── login.vue                    # 登录页（完整：校验 + API + 回首页）
     ├── register.vue                 # 注册页（占位）
-    ├── dashboard.vue                # 数据分析（占位）
+    ├── dashboard.vue                # 数据分析（6 KPI 卡片 + 5 ECharts 图表）✅ 已完成
     ├── knowledge.vue                # 知识文章（列表 + 搜索 + CRUD）✅ 已完成
     ├── consultations.vue            # 咨询记录（列表 + 分页 + 详情 + 删除）✅ 已完成
     └── emotional.vue                # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
@@ -285,6 +286,39 @@ deleteEmotional(id)               // DELETE /emotional/records/:id
 
 ---
 
+## 已完成模块：数据分析
+
+### 仪表盘 `dashboard.vue`
+
+| 区域 | 内容 |
+|------|------|
+| KPI 卡片 | 总用户数、活跃用户（+活跃率进度条）、情绪日志（今日新增）、咨询会话（今日新增）、平均情绪（x/10 + 进度条 + 状态文字）、高风险（占比 + 红色预警底色） |
+| 情绪趋势 | 折线图 + 渐变填充 + 三色背景带（良好/一般/关注）+ 均值虚线 + 最新值大头钉，HTML 图例标注，独立时间切换（7d/30d/90d） |
+| 情绪分布 | 环形图 + 环形中心总计数 + 外侧标签 + 百分比 tooltip |
+| 咨询趋势 | 渐变柱状图 + 均值虚线 + 最新值大头钉，独立时间切换 |
+| 风险分布 | 环形图 + 环形中心高风险数 + 外侧标签 + 百分比 tooltip |
+| 活跃度趋势 | 折线图 + 渐变填充 + 均值虚线 + 最新值大头钉，独立时间切换 |
+
+### 技术要点
+
+- **ECharts 按需引入**：`main.ts` 注册 CanvasRenderer + LineChart/BarChart/PieChart + 8 个交互组件（含 MarkLine/MarkArea/MarkPoint）
+- **三个趋势图独立切换**：每个图维护自己的 `range` 状态和趋势数据，切换一个不影响另外两个
+- **HTML 图例**：情绪趋势图的"良好/一般/关注"图例用 HTML 实现，避免 ECharts 内部 label 和折线重叠
+- **KPI 与 mock 数据联动**：所有 KPI 和分布图数据来源于 `mockEmotionals` / `mockConsultations`，趋势图以真实均值为基线加随机波动
+
+### API `api/dashboard.ts`
+
+```ts
+DashboardData { totalUsers, activeUsers, emotionalLogs, consultations, avgMoodScore, highRiskCount, moodTrend, emotionDistribution, riskDistribution, consultationTrend, userActivityTrend }
+getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
+```
+
+### Mock
+
+基于已有 `mockEmotionals` / `mockConsultations` 实时计算 KPI 和分布，趋势按 range 生成不同粒度（7d/30d 日粒度，90d 周聚合）。
+
+---
+
 ## 当前接口清单
 
 | 接口 | 方法 | 状态 |
@@ -301,6 +335,7 @@ deleteEmotional(id)               // DELETE /emotional/records/:id
 | `/api/emotional/records` | GET | ✅ mock |
 | `/api/emotional/records/:id` | GET | ✅ mock |
 | `/api/emotional/records/:id` | DELETE | ✅ mock |
+| `/api/dashboard` | GET | ✅ mock |
 | `/api/file/upload` | POST | ⚠️ mock 返回随机图 |
 
 ---
@@ -309,9 +344,8 @@ deleteEmotional(id)               // DELETE /emotional/records/:id
 
 | 模块 | 内容 | 优先级 |
 |------|------|--------|
-| 数据分析 | dashboard 页面 + API + mock | 🔴 下一步 |
+| 导航守卫 | 按角色拦截 /back 和 /auth，登出逻辑 | 🔴 下一步 |
 | 注册页 | register.vue 完整实现 | 🟢 |
-| 路由守卫 | 按角色拦截 /back 和 /auth | 🟢 |
 | 角色分流 | admin→后台，user→普通用户端 | 🟢 |
 | 后端对接 | 移除 mock 插件，接真实 API | 🔴 |
 
