@@ -4,7 +4,7 @@
             <el-button @click="handleCollapse">
                 <el-icon><Expand /></el-icon>
             </el-button>
-            <p class="page-title">导航栏</p>
+            <p class="page-title">{{ route.meta.title }}</p>
         </div>
         <div class="nav-right flex-box">
             <el-dropdown :teleported="false" @command="handleCommand">
@@ -29,6 +29,9 @@ import { ArrowDown, Expand } from '@element-plus/icons-vue'
 import { useAdminStore } from '@/stores/admin'
 import { useUserStore } from '@/stores/user'
 import { logout } from '@/api/auth'
+import {useRouter,useRoute} from 'vue-router'
+
+const route=useRoute()
 
 const adminStore = useAdminStore()
 const userStore = useUserStore()
@@ -44,6 +47,8 @@ const handleCollapse = () => {
 
 const handleCommand = (command: string) => {
   if (command === 'logout') {
+    // clearUser：重置 Pinia 响应式状态
+    // logout：清空 localStorage + 跳转登录页
     userStore.clearUser()
     logout()
   }

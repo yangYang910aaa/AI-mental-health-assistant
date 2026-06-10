@@ -67,23 +67,28 @@ src/
 │   └── index.ts                     # 路由配置（命名路由 + 懒加载 + ROUTE_NAMES 常量）
 │
 ├── components/
-│   ├── authLayout.vue               # 登录/注册布局（渐变背景 + 装饰浮动圆）
-│   ├── backToLayout.vue             # 后台布局容器
-│   ├── sideBar.vue                  # 左侧菜单（按 ROUTE_NAMES 定位路由）
-│   ├── navBar.vue                   # 顶栏（折叠 + 用户头像下拉）
-│   ├── pageHead.vue                 # 页面标题栏（title + 按钮插槽）
-│   ├── tableSearch.vue              # 通用搜索表单（formItem 配置驱动）
-│   ├── articleDialog.vue            # 文章新增/编辑弹窗（共用，含 wangEditor）
-│   ├── consultationDialog.vue       # 咨询详情弹窗（温暖治愈风聊天气泡）
-│   └── emotionalDialog.vue          # 情绪详情弹窗（AI 分析 + 风险描述 + 专业建议）
+│   ├── admin-page/
+│   │   ├── backToLayout.vue         # 后台布局容器
+│   │   ├── sideBar.vue              # 左侧菜单（按 ROUTE_NAMES 定位路由）
+│   │   ├── navBar.vue               # 顶栏（折叠 + 用户头像下拉）
+│   │   ├── pageHead.vue             # 页面标题栏（title + 按钮插槽）
+│   │   └── tableSearch.vue          # 通用搜索表单（formItem 配置驱动）
+│   ├── dialog/
+│   │   ├── articleDialog.vue        # 文章新增/编辑弹窗（共用，含 wangEditor）
+│   │   ├── consultationDialog.vue   # 咨询详情弹窗（温暖治愈风聊天气泡）
+│   │   └── emotionalDialog.vue      # 情绪详情弹窗（AI 分析 + 风险描述 + 专业建议）
+│   └── login/
+│       └── authLayout.vue           # 登录/注册布局（渐变背景 + 装饰浮动圆）
 │
 └── views/
-    ├── login.vue                    # 登录页（完整：校验 + API + 回首页）
-    ├── register.vue                 # 注册页（占位）
-    ├── dashboard.vue                # 数据分析（6 KPI 卡片 + 5 ECharts 图表）✅ 已完成
-    ├── knowledge.vue                # 知识文章（列表 + 搜索 + CRUD）✅ 已完成
-    ├── consultations.vue            # 咨询记录（列表 + 分页 + 详情 + 删除）✅ 已完成
-    └── emotional.vue                # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
+    ├── admin-page/
+    │   ├── dashboard.vue            # 数据分析（6 KPI 卡片 + 5 ECharts 图表）✅ 已完成
+    │   ├── knowledge.vue            # 知识文章（列表 + 搜索 + CRUD）✅ 已完成
+    │   ├── consultations.vue        # 咨询记录（列表 + 分页 + 详情 + 删除）✅ 已完成
+    │   └── emotional.vue            # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
+    └── login/
+        ├── login.vue                # 登录页（完整：校验 + API + 回首页）
+        └── register.vue             # 注册页（占位）
 ```
 
 ---

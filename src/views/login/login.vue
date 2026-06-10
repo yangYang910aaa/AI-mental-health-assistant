@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { User, Lock, Back } from '@element-plus/icons-vue'
 import { ROUTE_NAMES } from '@/router'
@@ -81,6 +81,7 @@ import { loginApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const formRef = ref<FormInstance>()
@@ -120,10 +121,15 @@ const handleLogin = async () => {
       username: formData.username,
       password: formData.password,
     })
-    // 保存 token 和用户信息，跳转后台首页
+    // 保存 token 和用户信息，跳转目标页面
     localStorage.setItem('token', result.token)
     userStore.setUser(result.userInfo)
-    router.push({ name: ROUTE_NAMES.dashboard })
+    const redirect = route.query.redirect as string | undefined
+    if (redirect && redirect.startsWith('/back')) {
+      router.push(redirect)
+    } else {
+      router.push({ name: ROUTE_NAMES.dashboard })
+    }
   } catch {
     // 错误提示由 axios 响应拦截器统一处理，此处仅恢复按钮状态
   } finally {

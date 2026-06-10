@@ -35,8 +35,9 @@ export const loginApi = (params: LoginParams) =>
 export const registerApi = (params: RegisterParams) =>
   request.post<void>('/auth/register', params)
 
-/** 退出登录（仅清除本地 token，后端若有注销接口可在这里对接） */
+/** 退出登录：清除本地状态 + 跳转登录页（后端若有注销接口可在这里对接） */
 export const logout = () => {
   localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
   window.location.href = '/auth/login'
 }

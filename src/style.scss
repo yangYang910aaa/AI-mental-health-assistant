@@ -33,6 +33,11 @@ li {
   list-style: none;
 }
 
+html {
+  // 始终显示滚动条，防止下拉菜单等浮层触发滚动条切换导致布局抖动
+  overflow-y: scroll;
+}
+
 body {
   height: 100vh;
   background-color: #f0f0f0;

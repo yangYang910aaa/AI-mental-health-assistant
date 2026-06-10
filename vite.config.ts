@@ -397,6 +397,31 @@ function mockApiPlugin(): Plugin {
         }
       })
 
+      // ==================== 注册 ====================
+      server.middlewares.use('/api/auth/register', async (req, res, next) => {
+        if (req.method !== 'POST') return next()
+
+        try {
+          const { username, password, nickname } = JSON.parse(await readBody(req))
+
+          if (!username?.trim()) {
+            return json(res, { code: 400, message: '用户名不能为空', data: null })
+          }
+          if (!password || password.length < 6) {
+            return json(res, { code: 400, message: '密码至少 6 位', data: null })
+          }
+          // 模拟用户名重复检查
+          if (username === 'admin') {
+            return json(res, { code: 409, message: '用户名已存在', data: null })
+          }
+
+          // 注册成功，返回空 data（需跳转到登录页）
+          json(res, { code: 200, message: '注册成功', data: null })
+        } catch {
+          json(res, { code: 400, message: '请求格式错误', data: null })
+        }
+      })
+
       // ==================== 知识文章：CRUD ====================
       server.middlewares.use('/api/knowledge/articles', async (req, res, next) => {
         // GET 列表

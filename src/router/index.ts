@@ -18,6 +18,8 @@ export const ROUTE_NAMES = {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    // 默认访问登录页
+    { path: '/', redirect: '/auth/login' },
     {
       path: '/back',
       name: ROUTE_NAMES.backLayout,
@@ -71,4 +73,41 @@ const router = createRouter({
     }
   ],
 })
+
+// ==================== 导航守卫 ====================
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem('token')
+
+  // —— /back/* 后台路由：需登录 + 管理员角色 ——
+  if (to.path.startsWith('/back')) {
+    if (!token) {
+      // 没登录，跳登录页并记住原本想去哪
+      next({ path: '/auth/login', query: { redirect: to.fullPath } })
+      return
+    }
+
+    // 已登录但需校验角色
+    try {
+      const raw = localStorage.getItem('userInfo')
+      const userInfo = raw ? JSON.parse(raw) : null
+      if (!userInfo?.roles?.includes('admin')) {
+        // 有 token 但不是管理员，踢回登录页
+        next({ path: '/auth/login' })
+        return
+      }
+    } catch {
+      next({ path: '/auth/login' })
+      return
+    }
+  }
+
+  // —— /auth/* 认证路由：已登录则跳过 ——
+  if (to.path.startsWith('/auth') && token) {
+    next({ path: '/back/knowledge' })
+    return
+  }
+
+  next()
+})
+
 export default router
