@@ -2,7 +2,7 @@
   <div>
     <pageHead title="知识文章">
       <template #buttons>
-        <el-button type="primary" @click="openAddDialog">新增</el-button>
+        <el-button type="primary" @click="openAddDialog" :icon="Plus">新增</el-button>
       </template>
     </pageHead>
 
@@ -85,6 +85,7 @@ import { fetchArticles, CATEGORIES, updateArticle, deleteArticle } from '@/api/k
 import type { Article } from '@/api/knowledge'
 import articleDialog from '@/components/articleDialog.vue'
 import { TAGS } from '@/api/knowledge'
+import { Plus } from '@element-plus/icons-vue'
 
 // ==================== 搜索表单 ====================
 const formItem = [
@@ -213,6 +214,10 @@ const handleDelete = async (row: Article) => {
     })
     await deleteArticle(row.id)
     ElMessage.success('删除成功')
+    // 删完当前页最后一条时回上一页
+    if (tableData.value.length === 1 && pagination.page > 1) {
+      pagination.page--
+    }
     loadData()
   } catch {
     // 用户取消或错误

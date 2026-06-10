@@ -46,7 +46,7 @@ const router = createRouter({
           path: 'emotional',
           name: ROUTE_NAMES.emotional,
           component: () => import('@/views/emotional.vue'),
-          meta: { title: '情感分析', icon: 'User' },
+          meta: { title: '情绪日志', icon: 'Calendar' },
         },
       ],
     },

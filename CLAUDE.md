@@ -55,6 +55,7 @@ src/
 │   ├── auth.ts                      # 登录/注册/退出 + UserInfo 类型
 │   ├── knowledge.ts                 # 文章 CRUD + 分类/标签常量
 │   ├── consultations.ts             # 咨询记录 CRUD + Message 类型
+│   ├── emotional.ts                 # 情绪日志 CRUD + MoodLabel/AiAnalysis 类型
 │   └── file.ts                      # 文件上传
 │
 ├── stores/
@@ -72,7 +73,8 @@ src/
 │   ├── pageHead.vue                 # 页面标题栏（title + 按钮插槽）
 │   ├── tableSearch.vue              # 通用搜索表单（formItem 配置驱动）
 │   ├── articleDialog.vue            # 文章新增/编辑弹窗（共用，含 wangEditor）
-│   └── consultationDialog.vue       # 咨询详情弹窗（温暖治愈风聊天气泡）
+│   ├── consultationDialog.vue       # 咨询详情弹窗（温暖治愈风聊天气泡）
+│   └── emotionalDialog.vue          # 情绪详情弹窗（AI 分析 + 风险描述 + 专业建议）
 │
 └── views/
     ├── login.vue                    # 登录页（完整：校验 + API + 回首页）
@@ -80,7 +82,7 @@ src/
     ├── dashboard.vue                # 数据分析（占位）
     ├── knowledge.vue                # 知识文章（列表 + 搜索 + CRUD）✅ 已完成
     ├── consultations.vue            # 咨询记录（列表 + 分页 + 详情 + 删除）✅ 已完成
-    └── emotional.vue                # 情感分析（占位）
+    └── emotional.vue                # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
 ```
 
 ---
@@ -234,6 +236,55 @@ deleteConsultation(id)            // DELETE /consultations/records/:id
 
 ---
 
+## 已完成模块：情绪日志
+
+### 列表页 `emotional.vue`
+
+| 功能 | 说明 |
+|------|------|
+| 搜索 | userId（回车搜索）、moodScoreRange（选中即搜）、moodLabel（选中即搜） |
+| 表格 | 用户ID、用户名、情绪评分（SVG 圆环红/橙/绿）、情绪标签（8色 dark tag）、记录内容、记录时间 |
+| 分页 | 10/20/50 条，切换 pageSize 回第 1 页 |
+| 详情 | 打开 emotionalDialog（按钮 loading 防重复点击，独立 API 请求） |
+| 删除 | 确认弹窗 → 删除 → 刷新（末页最后一条自动回上一页） |
+
+### 详情弹窗 `emotionalDialog.vue`
+
+| 区块 | 内容 |
+|------|------|
+| 用户信息 | 用户ID、用户名、记录时间 |
+| 情绪状态 | 10 星评分、情绪标签（彩色 tag）、夜间睡眠时长（/12h）、压力水平（进度条 绿/橙/红） |
+| 日志内容 | 情绪触发因素、记录内容 |
+| AI 分析结果 | 主要情绪（tag）、情绪强度（进度条随情绪色）、风险等级（绿/橙/红 tag）、情绪性质（正面绿/中性灰/负面红 tag） |
+| AI 建议 | 风险描述卡片 + 专业建议卡片（紫调渐变背景） |
+
+### API `api/emotional.ts`
+
+```ts
+// 类型
+EmotionalListItem { id, userId, userName, moodScore, moodLabel, content, createdAt }       // 列表轻量
+Emotional extends EmotionalListItem { sleepDuration, pressureLevel, moodTrigger, aiAnalysis, aiSuggestion }  // 详情完整
+AiAnalysis { primaryEmotion, emotionIntensity, riskLevel, emotionNature }
+aiSuggestion { riskDescription, advice }
+
+// 接口
+getEmotionalList(params)          // GET    /emotional/records（列表，返回轻量字段）
+getEmotionalDetail(id)            // GET    /emotional/records/:id（详情，返回完整字段）
+deleteEmotional(id)               // DELETE /emotional/records/:id
+```
+
+### 数据模型设计要点
+
+- **轻量列表 / 重量详情分离**：列表只返回 7 个字段，点详情才单独请求完整数据，避免列表一次加载大量 AI 分析文案
+- **情绪评分与标签语义关联**：开心/期待→正面高分(7-10)，平静→中性中分(5-7)，焦虑/疲惫/悲伤/愤怒/恐惧→负面低分(1-4)
+- **AI 分析字段内聚**：`aiAnalysis` 一个对象包含 4 个子项（主要情绪、情绪强度、风险等级、情绪性质），`aiSuggestion` 拆为风险描述 + 专业建议
+
+### Mock
+
+一个 handler 处理 `/api/emotional/records`，按 method + URL 末段分发 GET 列表/GET 详情/DELETE。列表响应剥离 `sleepDuration/pressureLevel/moodTrigger/aiAnalysis/aiSuggestion` 五个重字段。58 条数据覆盖 8 种情绪标签，每种含对应文案。
+
+---
+
 ## 当前接口清单
 
 | 接口 | 方法 | 状态 |
@@ -247,6 +298,9 @@ deleteConsultation(id)            // DELETE /consultations/records/:id
 | `/api/consultations/records` | GET | ✅ mock |
 | `/api/consultations/records/:id` | GET | ✅ mock |
 | `/api/consultations/records/:id` | DELETE | ✅ mock |
+| `/api/emotional/records` | GET | ✅ mock |
+| `/api/emotional/records/:id` | GET | ✅ mock |
+| `/api/emotional/records/:id` | DELETE | ✅ mock |
 | `/api/file/upload` | POST | ⚠️ mock 返回随机图 |
 
 ---
@@ -255,8 +309,7 @@ deleteConsultation(id)            // DELETE /consultations/records/:id
 
 | 模块 | 内容 | 优先级 |
 |------|------|--------|
-| 情感日志 | emotional 页面 + API + mock | 🔴 下一步 |
-| 数据分析 | dashboard 页面 + API + mock | 🟡 |
+| 数据分析 | dashboard 页面 + API + mock | 🔴 下一步 |
 | 注册页 | register.vue 完整实现 | 🟢 |
 | 路由守卫 | 按角色拦截 /back 和 /auth | 🟢 |
 | 角色分流 | admin→后台，user→普通用户端 | 🟢 |

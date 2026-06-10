@@ -25,12 +25,14 @@
             </template>
         </el-row>
         <el-row>
-            <el-button type="danger" @click="resetForm">重置</el-button>
+            <el-button color="#626aef" :icon="Search" @click="submitForm">查询</el-button>
+            <el-button type="danger" :icon="RefreshRight" @click="resetForm">重置</el-button>
         </el-row>
     </el-form>
 </template>
 
 <script setup lang="ts">
+import { RefreshRight, Search } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import type { PropType } from 'vue'
 import { ref,reactive,computed } from 'vue'
