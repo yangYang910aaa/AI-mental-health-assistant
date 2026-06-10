@@ -161,6 +161,7 @@ const moodTrendOption = computed(() => {
   const values = trend.map((t) => t.value)
   const avg = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10
   return {
+    toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 12, top: 4 },
     tooltip: {
       trigger: 'axis',
       backgroundColor: '#fff',
@@ -171,7 +172,7 @@ const moodTrendOption = computed(() => {
         return `<strong>${p.axisValue}</strong><br/>情绪指数：<b style="color:#626aef">${p.value}/10</b>`
       },
     },
-    grid: { left: 44, right: 52, top: 20, bottom: 30 },
+    grid: { left: 44, right: 52, top: 30, bottom: 30 },
     xAxis: {
       type: 'category',
       data: trend.map((t) => t.date.slice(5)),
@@ -241,6 +242,7 @@ const emotionDistOption = computed(() => {
   }
   const total = dist.reduce((s, d) => s + d.count, 0)
   return {
+    toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },
     tooltip: {
       trigger: 'item',
       formatter: (p: any) => `${p.marker} ${p.name}：<b>${p.value}</b> 条（${p.percent}%）`,
@@ -274,9 +276,9 @@ const riskDistOption = computed(() => {
   if (!kpiData.value) return {}
   const dist = kpiData.value.riskDistribution
   const colors: Record<string, string> = { '低风险': '#5dbd7a', '中风险': '#e0a220', '高风险': '#e85c5c' }
-  const total = dist.reduce((s, d) => s + d.count, 0)
   const high = dist.find((d) => d.label === '高风险')?.count || 0
   return {
+    toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },
     tooltip: {
       trigger: 'item',
       formatter: (p: any) => `${p.marker} ${p.name}：<b>${p.value}</b> 条（${p.percent}%）`,
@@ -312,6 +314,7 @@ const consultationTrendOption = computed(() => {
   const values = trend.map((t) => t.value)
   const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length)
   return {
+    toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },
     tooltip: {
       trigger: 'axis',
       backgroundColor: '#fff',
@@ -371,6 +374,7 @@ const userActivityOption = computed(() => {
   const values = trend.map((t) => t.value)
   const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length)
   return {
+    toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },
     tooltip: {
       trigger: 'axis',
       backgroundColor: '#fff',
