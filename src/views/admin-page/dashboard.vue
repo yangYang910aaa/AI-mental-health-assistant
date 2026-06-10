@@ -96,7 +96,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { User, UserFilled, Notebook, ChatLineSquare, Sunny, Warning } from '@element-plus/icons-vue'
-import pageHead from '@/components/pageHead.vue'
+import pageHead from '@/components/admin-page/pageHead.vue'
 import { getDashboardData } from '@/api/dashboard'
 import type { DashboardData } from '@/api/dashboard'
 

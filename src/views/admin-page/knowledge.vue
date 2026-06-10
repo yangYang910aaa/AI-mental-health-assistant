@@ -79,11 +79,11 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import pageHead from '@/components/pageHead.vue'
-import tableSearch from '@/components/tableSearch.vue'
+import pageHead from '@/components/admin-page/pageHead.vue'
+import tableSearch from '@/components/admin-page/tableSearch.vue'
 import { fetchArticles, CATEGORIES, updateArticle, deleteArticle } from '@/api/knowledge'
 import type { Article } from '@/api/knowledge'
-import articleDialog from '@/components/articleDialog.vue'
+import articleDialog from '@/components/dialog/articleDialog.vue'
 import { TAGS } from '@/api/knowledge'
 import { Plus } from '@element-plus/icons-vue'
 

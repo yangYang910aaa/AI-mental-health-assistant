@@ -54,10 +54,10 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import pageHead from '@/components/pageHead.vue'
+import pageHead from '@/components/admin-page/pageHead.vue'
 import { getConsultations,getConsultationDetail,deleteConsultation } from '@/api/consultations'
 import type { Consultation } from '@/api/consultations'
-import consultationDialog from '@/components/consultationDialog.vue'
+import consultationDialog from '@/components/dialog/consultationDialog.vue'
 import { ElMessage,ElMessageBox } from 'element-plus'
 
 const loading = ref(false)

@@ -21,31 +21,31 @@ const router = createRouter({
     {
       path: '/back',
       name: ROUTE_NAMES.backLayout,
-      component: () => import('@/components/backToLayout.vue'),
+      component: () => import('@/components/admin-page/backToLayout.vue'),
       redirect: '/back/knowledge',
       children: [
         {
           path: 'dashboard',
           name: ROUTE_NAMES.dashboard,
-          component: () => import('@/views/dashboard.vue'),
+          component: () => import('@/views/admin-page/dashboard.vue'),
           meta: { title: '数据分析', icon: 'PieChart' },
         },
         {
           path: 'knowledge',
           name: ROUTE_NAMES.knowledge,
-          component: () => import('@/views/knowledge.vue'),
+          component: () => import('@/views/admin-page/knowledge.vue'),
           meta: { title: '知识文章', icon: 'ChatLineSquare' },
         },
         {
           path: 'consultations',
           name: ROUTE_NAMES.consultations,
-          component: () => import('@/views/consultations.vue'),
+          component: () => import('@/views/admin-page/consultations.vue'),
           meta: { title: '咨询记录', icon: 'Message' },
         },
         {
           path: 'emotional',
           name: ROUTE_NAMES.emotional,
-          component: () => import('@/views/emotional.vue'),
+          component: () => import('@/views/admin-page/emotional.vue'),
           meta: { title: '情绪日志', icon: 'Calendar' },
         },
       ],
@@ -53,18 +53,18 @@ const router = createRouter({
     {
       path:'/auth',
       name:'auth',
-      component:()=>import('@/components/authLayout.vue'),
+      component:()=>import('@/components/login/authLayout.vue'),
       children:[
         {
           path:'login',
           name:'login',
-          component:()=>import('@/views/login.vue'),
+          component:()=>import('@/views/login/login.vue'),
           meta:{title:'登录'}
         },
         {
           path:'register',
           name:'register',
-          component:()=>import('@/views/register.vue'),
+          component:()=>import('@/views/login/register.vue'),
           meta:{title:'注册'}
         }
       ]

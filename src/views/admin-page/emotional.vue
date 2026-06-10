@@ -75,12 +75,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import pageHead from '@/components/pageHead.vue'
-import tableSearch from '@/components/tableSearch.vue'
+import pageHead from '@/components/admin-page/pageHead.vue'
+import tableSearch from '@/components/admin-page/tableSearch.vue'
 import type { Emotional, EmotionalListItem } from '@/api/emotional'
 import { getEmotionalList, getEmotionalDetail, deleteEmotional, MOOD_LABELS } from '@/api/emotional'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import emotionalDialog from '@/components/emotionalDialog.vue'
+import emotionalDialog from '@/components/dialog/emotionalDialog.vue'
 
 // ==================== 数据加载 ====================
 const tableData = ref<EmotionalListItem[]>([])
