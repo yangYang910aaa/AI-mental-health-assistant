@@ -80,6 +80,10 @@ export const TAGS: string[] = [
 export const fetchArticles = (params: ArticleListParams) =>
   request.get<ArticleListResult>('/knowledge/articles', { params })
 
+/** 获取文章详情 */
+export const fetchArticleDetail = (id: number) =>
+  request.get<Article>('/knowledge/articles/' + id)
+
 /** 创建文章 */
 export const createArticle = (params: CreateArticleParams) =>
   request.post<Article>('/knowledge/articles', params)

@@ -99,6 +99,7 @@ import { User, UserFilled, Notebook, ChatLineSquare, Sunny, Warning } from '@ele
 import pageHead from '@/components/admin-page/pageHead.vue'
 import { getDashboardData } from '@/api/dashboard'
 import type { DashboardData } from '@/api/dashboard'
+import { MOOD_LABEL_COLORS } from '@/api/emotional'
 
 type RangeKey = '7d' | '30d' | '90d'
 
@@ -235,11 +236,7 @@ const moodTrendOption = computed(() => {
 const emotionDistOption = computed(() => {
   if (!kpiData.value) return {}
   const dist = kpiData.value.emotionDistribution
-  const colors: Record<string, string> = {
-    '开心': '#f4a460', '期待': '#5dbd7a', '平静': '#5d9bdc',
-    '焦虑': '#e0a220', '疲惫': '#9d8bb0', '悲伤': '#7b8fce',
-    '愤怒': '#e85c5c', '恐惧': '#8b5cf6',
-  }
+  const colors = MOOD_LABEL_COLORS
   const total = dist.reduce((s, d) => s + d.count, 0)
   return {
     toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },

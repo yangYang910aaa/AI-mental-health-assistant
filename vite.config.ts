@@ -22,20 +22,52 @@ function mockApiPlugin(): Plugin {
   }
 
   // mock 文章数据
+  const articleTitles = [
+    '如何缓解日常焦虑情绪', '正念冥想的科学依据', '建立健康人际关系的五个方法',
+    '应对职场压力的实用技巧', '青少年心理健康指南', '睡眠质量与心理健康的关系',
+    '认知行为疗法入门', '情绪管理：从觉察到调节', '走出抑郁的第一步',
+    '心理健康自我评估指南',
+  ]
+  const articleCategories = ['mental-health', 'emotion-management', 'stress-coping', 'relationships']
+  const articleTags = [
+    ['焦虑', '情绪管理', '放松'],
+    ['冥想', '正念', '自我成长'],
+    ['人际关系', '心理健康'],
+    ['工作压力', '压力', '生活技巧'],
+    ['心理健康', '学习方法', '自我成长'],
+    ['睡眠', '放松', '焦虑'],
+    ['心理健康', '自我成长', '情绪管理'],
+    ['情绪管理', '正念', '冥想'],
+    ['抑郁', '心理健康', '压力'],
+    ['心理健康', '自我成长', '生活技巧'],
+  ]
+  // 每篇文章的 HTML 内容（与标题一一对应）
+  const articleContents = [
+    '<h2>认识焦虑</h2><p>焦虑是人类面对压力时的正常反应，适度的焦虑有助于提高警觉性和表现力。但当焦虑超出可控范围，影响日常生活时，就需要引起重视。</p><h2>实用缓解方法</h2><p><strong>深呼吸练习：</strong>每天花5分钟进行腹式呼吸，吸气4秒、屏息4秒、呼气6秒，能有效激活副交感神经系统。</p><p><strong>运动释放：</strong>每周至少150分钟的中等强度运动，如快走、游泳或瑜伽，能促进内啡肽分泌，自然缓解焦虑。</p><p><strong>书写疗愈：</strong>将担忧写下来，把模糊的恐惧转化为具体的文字，往往会发现问题并没有想象中那么严重。</p><blockquote>焦虑不会消除明天的悲伤，只会消耗今天的力量。 —— 查尔斯·司布真</blockquote>',
+    '<h2>什么是正念冥想</h2><p>正念（Mindfulness）是一种有意识地、不加评判地关注当下的心理训练方法。科学研究表明，持续8周的正念练习即可显著改变大脑结构，增强前额叶皮层活动，缩小杏仁核体积。</p><h2>科学证据</h2><p>哈佛大学的研究发现，正念冥想可以：</p><ul><li>降低皮质醇水平达30%</li><li>改善睡眠质量</li><li>提升注意力和记忆力</li><li>减少焦虑和抑郁症状</li></ul><p>每天只需10分钟的正念练习，坚持8周就能观察到明显的变化。</p><h2>入门练习</h2><p>找一个安静的地方坐下，闭上眼睛，将注意力放在呼吸上。当思绪飘走时，温和地将注意力带回呼吸。不要评判自己——思绪飘走是正常的。</p>',
+    '<h2>健康关系的基础</h2><p>人际关系是心理健康的重要支柱。良好的社交关系能提供情感支持、减轻压力，甚至延长寿命。</p><h2>五个关键方法</h2><p><strong>1. 积极倾听：</strong>专注于对方在说什么，而不是思考接下来要说什么。适当点头和目光接触能传达你的关注。</p><p><strong>2. 表达感激：</strong>定期向身边的人表达感谢，哪怕是小事。感恩能强化关系纽带。</p><p><strong>3. 设定边界：</strong>健康的关系需要清晰的边界。学会说"不"不是自私，而是自我保护。</p><p><strong>4. 共情理解：</strong>尝试站在对方的角度理解感受，而不是急于给出建议或评判。</p><p><strong>5. 定期联系：</strong>不要只在需要帮助时才联系朋友，定期的问候和小关心能维持关系的温度。</p>',
+    '<h2>职场压力的来源</h2><p>职场压力是现代社会最常见的压力源之一。据调查，超过70%的职场人表示曾经历过不同程度的职业倦怠。</p><h2>应对策略</h2><p><strong>时间管理：</strong>使用"番茄工作法"，25分钟专注工作+5分钟休息，提高效率的同时避免过度疲劳。</p><p><strong>合理期望：</strong>接受"足够好"而非"完美"。完美主义是职场压力的重要来源。</p><p><strong>社交支持：</strong>在工作中建立良好的同事关系，有人可以倾诉和分担压力。</p><p><strong>工作生活平衡：</strong>下班后设定"工作禁区"时间，不查看工作消息，给自己真正的休息空间。</p><blockquote>压力不是来自工作本身，而是来自我们对工作的看法。</blockquote>',
+    '<h2>青少年心理健康现状</h2><p>青春期是身心发展的关键阶段，也是心理问题的高发期。据WHO数据，全球10-19岁青少年中，约七分之一存在心理健康问题。</p><h2>常见问题</h2><ul><li>学业压力导致的焦虑</li><li>社交媒体的负面影响</li><li>自我认同困惑</li><li>亲子关系紧张</li></ul><h2>给家长的建议</h2><p><strong>保持沟通渠道开放：</strong>不要只在有问题时才和孩子交流，日常的倾听比批评更重要。</p><p><strong>尊重独立性：</strong>青少年需要一定的自主空间，过度的控制会适得其反。</p><p><strong>关注而非监视：</strong>了解孩子的社交圈和兴趣爱好，以关心的态度而非窥探的方式。</p>',
+    '<h2>睡眠为何重要</h2><p>睡眠是大脑"清理垃圾"的时间。深度睡眠期间，大脑会清除白天积累的代谢废物，巩固记忆，调节情绪。</p><h2>睡眠不足的影响</h2><p>连续一周每天睡眠不足6小时，认知能力下降相当于血液酒精浓度0.1%的状态。长期睡眠不足还与抑郁、焦虑、免疫力下降等密切相关。</p><h2>改善睡眠的实用建议</h2><p><strong>固定作息：</strong>每天在同一时间上床和起床，即使是周末也要保持一致。</p><p><strong>睡前仪式：</strong>睡前一小时放下电子设备，可以阅读纸质书、泡脚、听轻音乐。</p><p><strong>环境优化：</strong>保持卧室凉爽（18-22°C）、安静、黑暗。遮光窗帘和白噪音机器都值得投资。</p><p><strong>减少咖啡因：</strong>下午2点后不再摄入咖啡因，包括咖啡、茶、可乐等。</p>',
+    '<h2>什么是认知行为疗法</h2><p>认知行为疗法（CBT）是目前循证支持最充分的心理治疗方法之一，对抑郁、焦虑、强迫等多种心理问题都有显著效果。</p><h2>核心原理</h2><p>CBT基于一个简单的理念：<strong>影响我们情绪和行为的不是事件本身，而是我们对事件的解读。</strong></p><p>一个经典模型：事件 → 自动思维 → 情绪反应 → 行为。通过识别和挑战不合理的自动思维，可以改变情绪和行为。</p><h2>自助练习</h2><p><strong>思维记录表：</strong>当感到情绪强烈时，写下：情境 → 自动思维 → 情绪（打分1-10）→ 支持证据 → 反对证据 → 替代思维 → 重新评分。</p><blockquote>你不是你的想法，你是观察想法的人。</blockquote>',
+    '<h2>情绪觉察</h2><p>情绪管理的起点是觉察。很多人习惯性地压抑或忽视自己的情绪，这反而会让情绪以更有破坏性的方式爆发。</p><h2>三步调节法</h2><p><strong>第一步：命名情绪。</strong>当你感到不舒服时，停下来问自己："我现在感受到的是什么？是愤怒？悲伤？焦虑？还是失望？"精确命名情绪本身就是一种调节。</p><p><strong>第二步：接纳情绪。</strong>不要评判自己的情绪。所有的情绪都有其存在的意义——愤怒在保护你的边界，悲伤在提醒你失去的重要，焦虑在敦促你做好准备。</p><p><strong>第三步：选择回应。</strong>在接纳之后，你可以选择如何回应情绪，而不是被情绪驱使做出冲动的反应。</p>',
+    '<h2>理解抑郁</h2><p>抑郁不是"心情不好"或"想太多"，而是一种需要认真对待的心理健康问题。全球约有2.8亿人患有抑郁症。</p><h2>识别抑郁信号</h2><ul><li>持续两周以上的情绪低落</li><li>对曾经喜欢的事物失去兴趣</li><li>睡眠和食欲的显著变化</li><li>精力下降、注意力难以集中</li><li>反复出现死亡或自杀的想法</li></ul><h2>走出第一步</h2><p><strong>承认需要帮助：</strong>承认自己需要帮助不是软弱，而是勇气的体现。</p><p><strong>寻求专业帮助：</strong>心理咨询和药物治疗都是有效的干预方式，越早介入效果越好。</p><p><strong>日常小步骤：</strong>每天完成一件小事——起床、洗漱、出门散步5分钟。小步骤积累起来就是大的改变。</p><blockquote>抑郁让我停下来，让我知道自己走错了方向。它不是我的敌人，而是我的导航仪。</blockquote>',
+    '<h2>为什么要自我评估</h2><p>心理健康自我评估不是给自己"贴标签"，而是帮助我们更好地了解自己的心理状态，就像定期量血压一样自然。</p><h2>评估维度</h2><p><strong>情绪状态：</strong>最近一周的情绪基调是什么？是否有频繁的情绪波动？</p><p><strong>睡眠质量：</strong>入睡是否困难？是否早醒？醒来是否精力充沛？</p><p><strong>社交功能：</strong>是否愿意与人交往？社交后是感到充实还是更加疲惫？</p><p><strong>工作/学习状态：</strong>能否集中注意力完成任务？效率是否有明显变化？</p><p><strong>身体信号：</strong>是否有不明原因的头疼、胃痛、肌肉紧张等？</p><h2>重要提醒</h2><p>自我评估不能替代专业诊断。如果你对自己的心理状态感到担忧，请务必咨询专业的心理咨询师或精神科医生。</p>',
+  ]
+
   const mockArticles = Array.from({ length: 32 }, (_, i) => ({
     id: i + 1,
-    title: [
-      '如何缓解日常焦虑情绪', '正念冥想的科学依据', '建立健康人际关系的五个方法',
-      '应对职场压力的实用技巧', '青少年心理健康指南', '睡眠质量与心理健康的关系',
-      '认知行为疗法入门', '情绪管理：从觉察到调节', '走出抑郁的第一步',
-      '心理健康自我评估指南',
-    ][i % 10] + `（${i + 1}）`,
-    category: ['mental-health', 'emotion-management', 'stress-coping', 'relationships'][i % 4],
+    title: articleTitles[i % 10] + `（${i + 1}）`,
+    category: articleCategories[i % 4],
     author: '系统管理员',
     views: Math.floor(Math.random() * 5000) + 100,
     summary: '这是一篇关于心理健康的知识文章，旨在帮助读者了解相关概念并应用于日常生活。',
     status: (i % 7 === 0 ? 'offline' : i % 5 === 0 ? 'draft' : 'published') as 'published' | 'draft' | 'offline',
     createdAt: new Date(2026, 5 - (i % 5), 30 - (i % 30)).toISOString().split('T')[0],
+    // 新增：封面图 + 富文本内容 + 标签
+    coverImage: `https://picsum.photos/seed/mental${i + 1}/400/240`,
+    content: articleContents[i % 10],
+    tags: articleTags[i % 10],
   }))
 
   // mock 咨询记录数据
@@ -378,17 +410,19 @@ function mockApiPlugin(): Plugin {
 
           const isEmail = username?.includes('@')
           const displayName = username || 'admin'
+          // admin 登录 → 管理员角色；其他用户名 → 普通用户
+          const isAdmin = username === 'admin'
 
           json(res, {
             code: 200, message: 'ok',
             data: {
-              token: 'mock-jwt-token-xxxxx',
+              token: 'mock-jwt-token-' + (isAdmin ? 'admin' : 'user') + '-xxxxx',
               userInfo: {
-                id: 1,
+                id: isAdmin ? 1 : 1001,
                 username: isEmail ? username : displayName,
                 nickname: isEmail ? displayName.split('@')[0] : displayName,
                 avatar: '', // 空值 → el-avatar 展示首字兜底
-                roles: ['admin'],
+                roles: isAdmin ? ['admin'] : ['user'],
               },
             },
           })
@@ -402,7 +436,7 @@ function mockApiPlugin(): Plugin {
         if (req.method !== 'POST') return next()
 
         try {
-          const { username, password, nickname } = JSON.parse(await readBody(req))
+          const { username, password } = JSON.parse(await readBody(req))
 
           if (!username?.trim()) {
             return json(res, { code: 400, message: '用户名不能为空', data: null })
@@ -424,9 +458,17 @@ function mockApiPlugin(): Plugin {
 
       // ==================== 知识文章：CRUD ====================
       server.middlewares.use('/api/knowledge/articles', async (req, res, next) => {
-        // GET 列表
+        // GET 列表 / 详情
         if (req.method === 'GET') {
           const url = new URL(req.url!, 'http://localhost')
+          // 路径末段是数字 → 详情
+          const id = Number(url.pathname.split('/').pop())
+          if (id) {
+            const article = mockArticles.find((a) => a.id === id)
+            if (!article) return json(res, { code: 404, message: '文章不存在', data: null })
+            return json(res, { code: 200, message: 'ok', data: article })
+          }
+
           const title = url.searchParams.get('title') || undefined
           const category = url.searchParams.get('category') || undefined
           const status = url.searchParams.get('status') || undefined
@@ -680,6 +722,345 @@ function mockApiPlugin(): Plugin {
             userActivityTrend,
           },
         })
+      })
+
+      // ==================== 用户端 - 首页 ====================
+      server.middlewares.use('/api/user/home', async (req, res, next) => {
+        if (req.method !== 'GET') return next()
+
+        const url = new URL(req.url!, 'http://localhost')
+        const userId = Number(url.searchParams.get('userId')) || 1001
+
+        // 为当前请求用户补充最近 7 天的 mock 数据（保证"本周统计"不空）
+        const now2 = new Date()
+        for (let d = 0; d < 7; d++) {
+          const date = new Date(now2)
+          date.setDate(now2.getDate() - d)
+          // 最近 4 天保证有记录，跳过已有该日期的
+          if (d >= 4) continue
+          const dateStr = date.toISOString().split('T')[0]
+          const hasRecord = mockEmotionals.some((e) => e.userId === userId && e.createdAt.startsWith(dateStr))
+          if (!hasRecord) {
+            const mood = allMoods[d % allMoods.length]
+            const [min, max] = mood.scoreRange
+            const score = Math.floor(Math.random() * (max - min + 1)) + min
+            const contents = moodContents[mood.label]
+            const triggerList = moodTriggers[mood.label]
+            const ai = aiData[mood.label]
+            const suggestion = ai.suggestions[d % ai.suggestions.length]
+            const newId = Math.max(0, ...mockEmotionals.map((e) => e.id)) + 1 + d
+            mockEmotionals.push({
+              id: newId,
+              userId,
+              userName: userNames[userId % 10],
+              moodScore: score,
+              moodLabel: mood.label,
+              content: contents[d % contents.length],
+              sleepDuration: score >= 7 ? 8 : score >= 4 ? 6 : 4,
+              pressureLevel: score >= 7 ? 20 : score >= 4 ? 50 : 75,
+              moodTrigger: triggerList[d % triggerList.length],
+              aiAnalysis: {
+                primaryEmotion: ai.analysis.primaryEmotion,
+                emotionIntensity: score * 8 + d * 2,
+                riskLevel: ai.analysis.riskLevel(d),
+                emotionNature: ai.analysis.emotionNature,
+              },
+              aiSuggestion: { riskDescription: suggestion.riskDescription, advice: suggestion.advice },
+              createdAt: dateStr + ' ' + (10 + d).toString().padStart(2, '0') + ':00:00',
+            })
+          }
+        }
+
+        // 该用户的情绪记录（按时间倒序）
+        const userEmotionals = mockEmotionals
+          .filter((e) => e.userId === userId)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+        // 该用户的咨询记录
+        const userConsultations = mockConsultations
+          .filter((c) => c.userId === userId)
+          .sort((a, b) => b.lastMessageTime.localeCompare(a.lastMessageTime))
+
+        // 今日
+        const todayStr = new Date().toISOString().split('T')[0]
+        const todayRecord = userEmotionals.find((e) => e.createdAt.startsWith(todayStr))
+
+        // 本周范围
+        const now = new Date()
+        const weekAgo = new Date(now)
+        weekAgo.setDate(now.getDate() - 7)
+        const weekStr = weekAgo.toISOString().split('T')[0]
+
+        // 本周情绪记录
+        const weekEmotionals = userEmotionals.filter((e) => e.createdAt >= weekStr)
+        const weekChatMessages = userConsultations
+          .filter((c) => c.lastMessageTime >= weekStr)
+          .reduce((sum, c) => sum + c.messageCount, 0)
+        const weekAvgScore = weekEmotionals.length > 0
+          ? Math.round((weekEmotionals.reduce((s, e) => s + e.moodScore, 0) / weekEmotionals.length) * 10) / 10
+          : 0
+
+        // 统计卡片
+        const stats = {
+          todayMoodScore: todayRecord?.moodScore || 0,
+          todayMoodLabel: todayRecord?.moodLabel || '',
+          weekMoodCount: weekEmotionals.length,
+          weekChatCount: weekChatMessages,
+          weekAvgScore,
+        }
+
+        // 最近 7 天情绪趋势
+        const recentMoods = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date()
+          d.setDate(d.getDate() - (6 - i))
+          const dateStr = d.toISOString().split('T')[0]
+          const record = userEmotionals.find((e) => e.createdAt.startsWith(dateStr))
+          return record
+            ? { date: dateStr, score: record.moodScore, label: record.moodLabel }
+            : { date: dateStr, score: 0, label: '无记录' }
+        })
+
+        // 最近 3 条对话
+        const recentChats = userConsultations.slice(0, 3).map((c) => ({
+          id: c.id,
+          title: c.firstMessage.length > 20 ? c.firstMessage.slice(0, 20) + '…' : c.firstMessage,
+          lastMessage: c.firstMessage,
+          lastTime: c.lastMessageTime,
+          messageCount: c.messageCount,
+        }))
+
+        // 每日寄语
+        const dailyQuotes = [
+          '每一次对话都是一次自我发现。',
+          '你不需要独自承担一切，这里有人倾听。',
+          '休息不是懒惰，是身心健康的需要。',
+          '你已经做得够好了，给自己一点肯定吧。',
+          '情绪不分好坏，每一种都是你的真实感受。',
+          '改变从一小步开始，今天你迈出了这一步。',
+          '感受到痛苦，意味着你依然在意，这是活着的证明。',
+        ]
+
+        json(res, {
+          code: 200, message: 'ok',
+          data: {
+            dailyQuote: dailyQuotes[new Date().getDay() % dailyQuotes.length],
+            stats,
+            recentMoods,
+            recentChats,
+          },
+        })
+      })
+
+      // ==================== 用户端 - 聊天 ====================
+      // 内存中维护的用户会话（按 userId 存储，dev server 重启后重置）
+      const userSessions: Record<number, Array<{
+        id: number
+        title: string
+        messages: Array<{ id: number; sender: 'user' | 'assistant'; content: string; time: string }>
+      }>> = {}
+
+      // 为已有 mock 咨询数据预建会话
+      const initUserSessions = (userId: number) => {
+        if (!userSessions[userId]) {
+          userSessions[userId] = mockConsultations
+            .filter((c) => c.userId === userId)
+            .map((c) => ({
+              id: c.id,
+              title: c.firstMessage.length > 18 ? c.firstMessage.slice(0, 18) + '…' : c.firstMessage,
+              messages: generateMockMessages(c.id, c.messageCount, c.firstMessage),
+            }))
+        }
+      }
+
+      // AI 回复池
+      const aiReplies = [
+        '谢谢你愿意和我分享这些，能具体说说是什么让你有这样的感受吗？',
+        '我听到了你的困扰，这种感觉确实不容易。你之前有尝试过什么方法来应对吗？',
+        '每个人都会有这样的时候，你的感受是完全正常的。要不要试试换个角度看这件事？',
+        '听你这么说，我能感受到你内心的挣扎。如果现在给自己一个小小的安慰，那会是什么？',
+        '你提到的情况我很关注。除了这些外在因素，你觉得自己内心的声音是怎么说的？',
+        '这是一个很重要的觉察。当你开始注意到这些的时候，改变其实已经悄悄开始了。',
+        '不用着急，我们慢慢来。有时候，仅仅是说出来，就已经是向前迈了一大步。',
+        '我理解你的感受。如果用一个词来形容你现在的状态，那会是什么？',
+        '你的情绪是合理的，不要否定自己的感受。要不要试试今天给自己五分钟，什么都不做，只是呼吸？',
+        '听起来你经历了很多。在这么多压力之中，你还愿意来这里和我聊，这本身就很了不起。',
+        '我很好奇，如果这些事情发生在你最亲近的朋友身上，你会怎么安慰他？你能用同样的温柔对待自己吗？',
+        '这个发现很有意义。你能觉察到这些，说明你对自己的了解比想象中更深。',
+      ]
+
+      server.middlewares.use('/api/user/chat/send', async (req, res, next) => {
+        if (req.method !== 'POST') return next()
+
+        try {
+          const { sessionId, content, userId } = JSON.parse(await readBody(req))
+          if (!content?.trim()) return json(res, { code: 400, message: '消息不能为空', data: null })
+
+          initUserSessions(userId || 1001)
+          const sessions = userSessions[userId || 1001]
+
+          let session = sessionId ? sessions.find((s) => s.id === sessionId) : null
+          // 不存在则新建会话
+          if (!session) {
+            const newId = Math.max(0, ...sessions.map((s) => s.id)) + 1
+            session = {
+              id: newId,
+              title: content.length > 18 ? content.slice(0, 18) + '…' : content,
+              messages: [],
+            }
+            sessions.unshift(session)
+          }
+
+          const now = new Date()
+          const timeStr = now.toISOString().replace('T', ' ').slice(0, 19)
+          const userMsg = {
+            id: session.messages.length + 1,
+            sender: 'user' as const,
+            content,
+            time: timeStr,
+          }
+          session.messages.push(userMsg)
+
+          // 模拟 AI 延迟回复
+          await new Promise((r) => setTimeout(r, 600 + Math.random() * 800))
+
+          const aiMsg = {
+            id: session.messages.length + 1,
+            sender: 'assistant' as const,
+            content: aiReplies[Math.floor(Math.random() * aiReplies.length)],
+            time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+          }
+          session.messages.push(aiMsg)
+
+          // 更新会话标题（用第一条用户消息）
+          if (session.messages.filter((m) => m.sender === 'user').length === 1) {
+            session.title = content.length > 18 ? content.slice(0, 18) + '…' : content
+          }
+
+          json(res, { code: 200, message: 'ok', data: { userMessage: userMsg, aiReply: aiMsg } })
+        } catch {
+          json(res, { code: 400, message: '请求格式错误', data: null })
+        }
+      })
+
+      server.middlewares.use('/api/user/chat/sessions', async (req, res, next) => {
+        if (req.method !== 'GET') return next()
+
+        const url = new URL(req.url!, 'http://localhost')
+        const userId = Number(url.searchParams.get('userId')) || 1001
+        const id = Number(url.pathname.split('/').pop())
+
+        initUserSessions(userId)
+        const sessions = userSessions[userId]
+
+        // 路径末段是数字 → 返回该会话消息
+        if (id) {
+          const session = sessions.find((s) => s.id === id)
+          if (!session) return json(res, { code: 404, message: '会话不存在', data: null })
+          return json(res, { code: 200, message: 'ok', data: session.messages })
+        }
+
+        // 否则返回会话列表
+        const list = sessions.map((s) => ({
+          id: s.id,
+          title: s.title,
+          lastMessage: s.messages.length > 0 ? s.messages[s.messages.length - 1].content : '',
+          lastTime: s.messages.length > 0 ? s.messages[s.messages.length - 1].time : '',
+          messageCount: s.messages.length,
+        }))
+        json(res, { code: 200, message: 'ok', data: list })
+      })
+
+      // ==================== 用户端 - 心情记录 ====================
+      // 内存中的用户心情记录（dev server 重启后重置）
+      const userMoodRecords: Record<number, Array<{
+        id: number; userId: number; userName: string; moodScore: number; moodLabel: string
+        content: string; moodTrigger: string; sleepDuration: number; pressureLevel: number
+        aiAnalysis: any; aiSuggestion: any; createdAt: string
+      }>> = {}
+
+      const initUserMoods = (userId: number) => {
+        if (!userMoodRecords[userId]) {
+          userMoodRecords[userId] = mockEmotionals
+            .filter((e) => e.userId === userId)
+            .map((e) => ({ ...e }))
+        }
+      }
+
+      server.middlewares.use('/api/user/mood', async (req, res, next) => {
+        const url = new URL(req.url!, 'http://localhost')
+        const userId = Number(url.searchParams.get('userId')) || 1001
+
+        initUserMoods(userId)
+
+        // POST 创建
+        if (req.method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req))
+            if (!body.moodScore || !body.moodLabel) {
+              return json(res, { code: 400, message: '情绪评分和标签不能为空', data: null })
+            }
+
+            const records = userMoodRecords[body.userId || userId]
+            const newRecord = {
+              id: records.length > 0 ? Math.max(...records.map((r) => r.id)) + 1 : 1,
+              userId: body.userId || userId,
+              userName: body.userName || '用户',
+              moodScore: body.moodScore,
+              moodLabel: body.moodLabel,
+              content: body.content || '',
+              moodTrigger: body.moodTrigger || '',
+              sleepDuration: body.sleepDuration || 0,
+              pressureLevel: body.pressureLevel || 0,
+              aiAnalysis: {
+                primaryEmotion: body.moodLabel,
+                emotionIntensity: body.moodScore * 10,
+                riskLevel: body.moodScore >= 7 ? '低风险' : body.moodScore >= 4 ? '中风险' : '高风险',
+                emotionNature: body.moodScore >= 7 ? '正面情绪' : body.moodScore >= 4 ? '中性情绪' : '负面情绪',
+              },
+              aiSuggestion: {
+                riskDescription: '已记录心情，AI 会根据你的情绪变化提供建议。',
+                advice: body.moodScore >= 7
+                  ? '你的状态不错！保持积极的心态，享受美好的一天。'
+                  : '关注自己的情绪很重要，如果持续低落，不妨和 AI 咨询师聊聊。',
+              },
+              createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            }
+            records.unshift(newRecord)
+            return json(res, { code: 200, message: '记录成功', data: null })
+          } catch {
+            return json(res, { code: 400, message: '请求格式错误', data: null })
+          }
+        }
+
+        // GET 列表
+        if (req.method === 'GET') {
+          const page = Number(url.searchParams.get('page')) || 1
+          const pageSize = Number(url.searchParams.get('pageSize')) || 10
+
+          const records = userMoodRecords[userId] || []
+          const total = records.length
+          const start = (page - 1) * pageSize
+          const list = records.slice(start, start + pageSize).map(({ aiAnalysis, aiSuggestion, sleepDuration, pressureLevel, moodTrigger, userId, userName, ...item }) => item)
+
+          return json(res, { code: 200, message: 'ok', data: { list, total } })
+        }
+
+        // DELETE 删除
+        if (req.method === 'DELETE') {
+          const id = Number(req.url!.split('/').pop())
+          // 在所有用户的心情记录中查找并删除
+          for (const uid of Object.keys(userMoodRecords)) {
+            const records = userMoodRecords[Number(uid)]
+            const idx = records.findIndex((r) => r.id === id)
+            if (idx !== -1) {
+              records.splice(idx, 1)
+              return json(res, { code: 200, message: '删除成功', data: null })
+            }
+          }
+          return json(res, { code: 404, message: '心情记录不存在', data: null })
+        }
+
+        next()
       })
 
       // ==================== 文件上传 ====================

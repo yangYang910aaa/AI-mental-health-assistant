@@ -8,6 +8,14 @@ export const ROUTE_NAMES = {
   knowledge: 'knowledge',
   consultations: 'consultations',
   emotional: 'emotional',
+  // 用户端路由
+  userLayout: 'userLayout',
+  userHome: 'userHome',
+  userChat: 'userChat',
+  userMood: 'userMood',
+  userArticles: 'userArticles',
+  userArticleDetail: 'userArticleDetail',
+  userProfile: 'userProfile',
   // 认证路由
   authLayout: 'authLayout',
   login: 'login',
@@ -18,12 +26,14 @@ export const ROUTE_NAMES = {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    // 默认访问登录页
+    // 根路径 → 登录页
     { path: '/', redirect: '/auth/login' },
+
+    // ==================== 管理后台 ====================
     {
       path: '/back',
       name: ROUTE_NAMES.backLayout,
-      component: () => import('@/components/admin-page/backToLayout.vue'),
+      component: () => import('@/layouts/adminLayout.vue'),
       redirect: '/back/knowledge',
       children: [
         {
@@ -52,10 +62,58 @@ const router = createRouter({
         },
       ],
     },
+
+    // ==================== 用户端 ====================
+    {
+      path: '/user',
+      name: ROUTE_NAMES.userLayout,
+      component: () => import('@/layouts/userLayout.vue'),
+      redirect: '/user/home',
+      children: [
+        {
+          path: 'home',
+          name: ROUTE_NAMES.userHome,
+          component: () => import('@/views/user-page/userHome.vue'),
+          meta: { title: '首页' },
+        },
+        {
+          path: 'chat',
+          name: ROUTE_NAMES.userChat,
+          component: () => import('@/views/user-page/userChat.vue'),
+          meta: { title: 'AI 对话' },
+        },
+        {
+          path: 'mood',
+          name: ROUTE_NAMES.userMood,
+          component: () => import('@/views/user-page/userMood.vue'),
+          meta: { title: '心情记录' },
+        },
+        {
+          path: 'articles',
+          name: ROUTE_NAMES.userArticles,
+          component: () => import('@/views/user-page/userArticles.vue'),
+          meta: { title: '健康知识' },
+        },
+        {
+          path: 'articles/:id',
+          name: ROUTE_NAMES.userArticleDetail,
+          component: () => import('@/views/user-page/userArticleDetail.vue'),
+          meta: { title: '文章详情' },
+        },
+        {
+          path: 'profile',
+          name: ROUTE_NAMES.userProfile,
+          component: () => import('@/views/user-page/userProfile.vue'),
+          meta: { title: '个人中心' },
+        },
+      ],
+    },
+
+    // ==================== 认证 ====================
     {
       path:'/auth',
       name:'auth',
-      component:()=>import('@/components/login/authLayout.vue'),
+      component:()=>import('@/layouts/authLayout.vue'),
       children:[
         {
           path:'login',
@@ -81,17 +139,14 @@ router.beforeEach((to, _from, next) => {
   // —— /back/* 后台路由：需登录 + 管理员角色 ——
   if (to.path.startsWith('/back')) {
     if (!token) {
-      // 没登录，跳登录页并记住原本想去哪
       next({ path: '/auth/login', query: { redirect: to.fullPath } })
       return
     }
-
-    // 已登录但需校验角色
+    // 校验管理员角色
     try {
       const raw = localStorage.getItem('userInfo')
       const userInfo = raw ? JSON.parse(raw) : null
       if (!userInfo?.roles?.includes('admin')) {
-        // 有 token 但不是管理员，踢回登录页
         next({ path: '/auth/login' })
         return
       }
@@ -101,9 +156,27 @@ router.beforeEach((to, _from, next) => {
     }
   }
 
-  // —— /auth/* 认证路由：已登录则跳过 ——
+  // —— /user/* 用户端路由：需登录 ——
+  if (to.path.startsWith('/user')) {
+    if (!token) {
+      next({ path: '/auth/login', query: { redirect: to.fullPath } })
+      return
+    }
+  }
+
+  // —— /auth/* 认证路由：已登录则按角色分流 ——
   if (to.path.startsWith('/auth') && token) {
-    next({ path: '/back/knowledge' })
+    try {
+      const raw = localStorage.getItem('userInfo')
+      const userInfo = raw ? JSON.parse(raw) : null
+      if (userInfo?.roles?.includes('admin')) {
+        next({ path: '/back/knowledge' })
+      } else {
+        next({ path: '/user/home' })
+      }
+    } catch {
+      next({ path: '/user/home' })
+    }
     return
   }
 

@@ -125,10 +125,12 @@ const handleLogin = async () => {
     localStorage.setItem('token', result.token)
     userStore.setUser(result.userInfo)
     const redirect = route.query.redirect as string | undefined
-    if (redirect && redirect.startsWith('/back')) {
+    if (redirect && (redirect.startsWith('/back') || redirect.startsWith('/user'))) {
       router.push(redirect)
-    } else {
+    } else if (result.userInfo.roles?.includes('admin')) {
       router.push({ name: ROUTE_NAMES.dashboard })
+    } else {
+      router.push({ name: ROUTE_NAMES.userHome })
     }
   } catch {
     // 错误提示由 axios 响应拦截器统一处理，此处仅恢复按钮状态

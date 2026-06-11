@@ -104,6 +104,7 @@
 import { computed } from 'vue'
 import type { PropType } from 'vue'
 import type { Emotional } from '@/api/emotional'
+import { MOOD_LABEL_COLORS } from '@/api/emotional'
 
 const props = defineProps({
   showDetailDialog: {
@@ -124,19 +125,7 @@ const dialogVisible = computed({
 // ==================== 工具函数 ====================
 
 // 情绪标签颜色映射
-const moodColor = (label: string): string => {
-  const map: Record<string, string> = {
-    '开心': '#f4a460',
-    '平静': '#5d9bdc',
-    '焦虑': '#e0a220',
-    '悲伤': '#7b8fce',
-    '愤怒': '#e85c5c',
-    '疲惫': '#9d8bb0',
-    '期待': '#5dbd7a',
-    '恐惧': '#8b5cf6',
-  }
-  return map[label] || '#909399'
-}
+const moodColor = (label: string): string => MOOD_LABEL_COLORS[label] || '#909399'
 
 // 压力水平颜色映射
 const pressureColor = (val: number): string => {

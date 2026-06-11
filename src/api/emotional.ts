@@ -54,6 +54,35 @@ export interface EmotionalListResult {
   total: number
 }
 
+// ==================== 常量 & 工具函数 ====================
+
+/** 情绪标签 → 显示颜色 */
+export const MOOD_LABEL_COLORS: Record<string, string> = {
+  '开心': '#f4a460',
+  '期待': '#5dbd7a',
+  '平静': '#5d9bdc',
+  '焦虑': '#e0a220',
+  '疲惫': '#9d8bb0',
+  '悲伤': '#7b8fce',
+  '愤怒': '#e85c5c',
+  '恐惧': '#8b5cf6',
+}
+
+/** 情绪评分 → 颜色 */
+export const moodScoreColor = (score: number): string =>
+  score >= 7 ? '#52c41a' : score >= 4 ? '#faad14' : '#ff4d4f'
+
+/** 情绪评分滑条标记 */
+export const SCORE_MARKS: Record<number, string> = {
+  1: '😣', 3: '😟', 5: '😐', 7: '🙂', 10: '😊',
+}
+
+/** 情绪触发因素选项 */
+export const TRIGGER_OPTIONS: string[] = [
+  '工作压力', '人际关系', '家庭问题', '健康担忧', '学业考试',
+  '感情问题', '经济压力', '生活琐事', '天气影响', '无特别原因',
+]
+
 // ==================== API ====================
 
 /** 获取情绪日志列表 */

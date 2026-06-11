@@ -29,7 +29,7 @@ import { ArrowDown, Expand } from '@element-plus/icons-vue'
 import { useAdminStore } from '@/stores/admin'
 import { useUserStore } from '@/stores/user'
 import { logout } from '@/api/auth'
-import {useRouter,useRoute} from 'vue-router'
+import {useRoute} from 'vue-router'
 
 const route=useRoute()
 

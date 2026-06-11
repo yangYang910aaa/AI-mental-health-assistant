@@ -15,8 +15,8 @@
 </template>
 
 <script setup lang="ts">
-import sideBar from './sideBar.vue'
-import navBar from './navBar.vue'
+import sideBar from '@/components/admin-page/sideBar.vue'
+import navBar from '@/components/admin-page/navBar.vue'
 </script>
 <style lang="scss" scoped>
 .back-to-layout{
@@ -35,5 +35,5 @@ import navBar from './navBar.vue'
         min-height: calc(100vh - 70px);
       }
     }
-} 
+}
 </style>

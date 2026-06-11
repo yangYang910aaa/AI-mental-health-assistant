@@ -78,7 +78,7 @@ import { ref, reactive, onMounted } from 'vue'
 import pageHead from '@/components/admin-page/pageHead.vue'
 import tableSearch from '@/components/admin-page/tableSearch.vue'
 import type { Emotional, EmotionalListItem } from '@/api/emotional'
-import { getEmotionalList, getEmotionalDetail, deleteEmotional, MOOD_LABELS } from '@/api/emotional'
+import { getEmotionalList, getEmotionalDetail, deleteEmotional, MOOD_LABELS, MOOD_LABEL_COLORS } from '@/api/emotional'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import emotionalDialog from '@/components/dialog/emotionalDialog.vue'
 
@@ -196,19 +196,7 @@ const ringColor = (score: number): string => {
   return '#67c23a'
 }
 
-const moodColor = (label: string): string => {
-  const map: Record<string, string> = {
-    '开心': '#f4a460',   // 暖橙金
-    '平静': '#5d9bdc',   // 湖蓝
-    '焦虑': '#e0a220',   // 琥珀
-    '悲伤': '#7b8fce',   // 靛蓝
-    '愤怒': '#e85c5c',   // 赤红
-    '疲惫': '#9d8bb0',   // 灰紫
-    '期待': '#5dbd7a',   // 翠绿
-    '恐惧': '#8b5cf6',   // 暗紫
-  }
-  return map[label] || '#909399'
-}
+const moodColor = (label: string): string => MOOD_LABEL_COLORS[label] || '#909399'
 
 // ==================== 初始化 ====================
 onMounted(() => {
