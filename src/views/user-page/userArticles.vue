@@ -192,8 +192,10 @@ onMounted(() => loadArticles())
         font-weight: 600;
         color: #374151;
         margin: 8px 0 6px;
+        // 把长标题优雅地限制在两行内，超出的部分自动裁剪并加省略号
         display: -webkit-box;
         -webkit-line-clamp: 2;
+        line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
@@ -201,8 +203,10 @@ onMounted(() => loadArticles())
         font-size: 13px;
         color: #9ca3af;
         margin: 0 0 10px;
+        // 把长摘要限制在两行内，超出的部分自动裁剪并加省略号
         display: -webkit-box;
         -webkit-line-clamp: 2;
+        line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
