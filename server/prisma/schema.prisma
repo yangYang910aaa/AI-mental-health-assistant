@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ==================== 用户 ====================
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @db.VarChar(50)
+  passwordHash String    @db.VarChar(255)
+  nickname     String?   @db.VarChar(50)
+  avatar       String?   @db.VarChar(500)
+  role         String    @default("user") @db.VarChar(20)
+  createdAt    DateTime  @default(now())
+
+  moods          MoodRecord[]
+  chatSessions   ChatSession[]
+}
+
+// ==================== 心情记录 ====================
+model MoodRecord {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  moodScore      Int
+  moodLabel      String    @db.VarChar(20)
+  content        String?   @db.Text
+  moodTrigger    String?   @db.VarChar(100)
+  sleepDuration  Decimal?  @db.Decimal(4, 1)
+  pressureLevel  Int?
+  aiAnalysis     Json?
+  aiSuggestion   Json?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ==================== 聊天会话 ====================
+model ChatSession {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  title     String    @db.VarChar(200)
+  createdAt DateTime  @default(now())
+
+  user     User          @relation(fields: [userId], references: [id])
+  messages ChatMessage[]
+}
+
+// ==================== 聊天消息 ====================
+model ChatMessage {
+  id        Int       @id @default(autoincrement())
+  sessionId Int
+  sender    String    @db.VarChar(20)  // "user" | "assistant"
+  content   String    @db.Text
+  createdAt DateTime  @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ==================== 知识文章 ====================
+model Article {
+  id          Int       @id @default(autoincrement())
+  title       String    @db.VarChar(200)
+  content     String    @db.LongText
+  category    String    @db.VarChar(50)
+  author      String    @db.VarChar(50)
+  coverImage  String?   @db.VarChar(500)
+  summary     String?   @db.VarChar(1000)
+  tags        Json?
+  status      String    @default("draft") @db.VarChar(20)
+  views       Int       @default(0)
+  createdAt   DateTime  @default(now())
+}
