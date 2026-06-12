@@ -92,7 +92,7 @@
           :rows="2"
           placeholder="输入你想说的话…"
           resize="none"
-          @keydown.enter.exact="handleSend"
+          @keydown.enter.exact.prevent="handleSend"
         />
         <el-button
           type="primary"
@@ -103,6 +103,9 @@
         >
           发送
         </el-button>
+      </div>
+      <div class="chat-input-hint">
+        按 <kbd>Enter</kbd> 发送，<kbd>Shift</kbd> + <kbd>Enter</kbd> 换行
       </div>
     </div>
   </div>
@@ -491,6 +494,23 @@ watch(activeSessionId, () => scrollToBottom())
       background: #8b9e7e;
       border-color: #8b9e7e;
       &:hover { background: #7a8e6f !important; }
+    }
+  }
+
+  .chat-input-hint {
+    text-align: left;
+    padding: 4px 20px 10px;
+    font-size: 13px;
+    color: #9ca3af;
+    kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 12px;
+      color: #6b7280;
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      line-height: 1.5;
     }
   }
 }

@@ -140,7 +140,10 @@ http.interceptors.response.use(
     const status = error?.response?.status
 
     // 401 → 登录过期 / token 无效，清 token + 跳转
-    if (status === 401) return handleUnauthorized()
+    // 但登录接口本身的 401（密码错误）不能跳，要显示错误消息
+    if (status === 401 && !error.config?.url?.includes('/auth/login')) {
+      return handleUnauthorized()
+    }
 
     // 403 → 有权限但不够，弹提示，不跳转
     if (status === 403) {
