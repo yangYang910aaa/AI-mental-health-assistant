@@ -1,14 +1,29 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import multipart from '@fastify/multipart'
+import fastifyStatic from '@fastify/static'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { authRoutes } from './routes/auth.js'
+import { knowledgeRoutes } from './routes/knowledge.js'
+import { fileRoutes } from './routes/file.js'
 
-const app = Fastify({ logger: false })
+const app = Fastify({ logger: false, bodyLimit: 50 * 1024 * 1024 }) // 50MB，支持 base64 图片
 
-// ==================== 插件 ====================
+// ==================== 跨域插件 ====================
 await app.register(cors)
 
-// ==================== 路由 ====================
+// ==================== 文件上传 + 静态服务 ====================
+await app.register(multipart)
+await app.register(fastifyStatic, {
+  root: join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'uploads'),
+  prefix: '/uploads/',
+})
+
+// ==================== 注册路由 ====================
 await app.register(authRoutes)
+await app.register(knowledgeRoutes)
+await app.register(fileRoutes)
 
 // ==================== 全局错误处理 ====================
 app.setErrorHandler((error: { statusCode?: number; message?: string }, _request, reply) => {

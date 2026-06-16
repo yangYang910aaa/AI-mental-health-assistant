@@ -21,55 +21,6 @@ function mockApiPlugin(): Plugin {
     res.end(JSON.stringify(data))
   }
 
-  // mock 文章数据
-  const articleTitles = [
-    '如何缓解日常焦虑情绪', '正念冥想的科学依据', '建立健康人际关系的五个方法',
-    '应对职场压力的实用技巧', '青少年心理健康指南', '睡眠质量与心理健康的关系',
-    '认知行为疗法入门', '情绪管理：从觉察到调节', '走出抑郁的第一步',
-    '心理健康自我评估指南',
-  ]
-  const articleCategories = ['mental-health', 'emotion-management', 'stress-coping', 'relationships']
-  const articleTags = [
-    ['焦虑', '情绪管理', '放松'],
-    ['冥想', '正念', '自我成长'],
-    ['人际关系', '心理健康'],
-    ['工作压力', '压力', '生活技巧'],
-    ['心理健康', '学习方法', '自我成长'],
-    ['睡眠', '放松', '焦虑'],
-    ['心理健康', '自我成长', '情绪管理'],
-    ['情绪管理', '正念', '冥想'],
-    ['抑郁', '心理健康', '压力'],
-    ['心理健康', '自我成长', '生活技巧'],
-  ]
-  // 每篇文章的 HTML 内容（与标题一一对应）
-  const articleContents = [
-    '<h2>认识焦虑</h2><p>焦虑是人类面对压力时的正常反应，适度的焦虑有助于提高警觉性和表现力。但当焦虑超出可控范围，影响日常生活时，就需要引起重视。</p><h2>实用缓解方法</h2><p><strong>深呼吸练习：</strong>每天花5分钟进行腹式呼吸，吸气4秒、屏息4秒、呼气6秒，能有效激活副交感神经系统。</p><p><strong>运动释放：</strong>每周至少150分钟的中等强度运动，如快走、游泳或瑜伽，能促进内啡肽分泌，自然缓解焦虑。</p><p><strong>书写疗愈：</strong>将担忧写下来，把模糊的恐惧转化为具体的文字，往往会发现问题并没有想象中那么严重。</p><blockquote>焦虑不会消除明天的悲伤，只会消耗今天的力量。 —— 查尔斯·司布真</blockquote>',
-    '<h2>什么是正念冥想</h2><p>正念（Mindfulness）是一种有意识地、不加评判地关注当下的心理训练方法。科学研究表明，持续8周的正念练习即可显著改变大脑结构，增强前额叶皮层活动，缩小杏仁核体积。</p><h2>科学证据</h2><p>哈佛大学的研究发现，正念冥想可以：</p><ul><li>降低皮质醇水平达30%</li><li>改善睡眠质量</li><li>提升注意力和记忆力</li><li>减少焦虑和抑郁症状</li></ul><p>每天只需10分钟的正念练习，坚持8周就能观察到明显的变化。</p><h2>入门练习</h2><p>找一个安静的地方坐下，闭上眼睛，将注意力放在呼吸上。当思绪飘走时，温和地将注意力带回呼吸。不要评判自己——思绪飘走是正常的。</p>',
-    '<h2>健康关系的基础</h2><p>人际关系是心理健康的重要支柱。良好的社交关系能提供情感支持、减轻压力，甚至延长寿命。</p><h2>五个关键方法</h2><p><strong>1. 积极倾听：</strong>专注于对方在说什么，而不是思考接下来要说什么。适当点头和目光接触能传达你的关注。</p><p><strong>2. 表达感激：</strong>定期向身边的人表达感谢，哪怕是小事。感恩能强化关系纽带。</p><p><strong>3. 设定边界：</strong>健康的关系需要清晰的边界。学会说"不"不是自私，而是自我保护。</p><p><strong>4. 共情理解：</strong>尝试站在对方的角度理解感受，而不是急于给出建议或评判。</p><p><strong>5. 定期联系：</strong>不要只在需要帮助时才联系朋友，定期的问候和小关心能维持关系的温度。</p>',
-    '<h2>职场压力的来源</h2><p>职场压力是现代社会最常见的压力源之一。据调查，超过70%的职场人表示曾经历过不同程度的职业倦怠。</p><h2>应对策略</h2><p><strong>时间管理：</strong>使用"番茄工作法"，25分钟专注工作+5分钟休息，提高效率的同时避免过度疲劳。</p><p><strong>合理期望：</strong>接受"足够好"而非"完美"。完美主义是职场压力的重要来源。</p><p><strong>社交支持：</strong>在工作中建立良好的同事关系，有人可以倾诉和分担压力。</p><p><strong>工作生活平衡：</strong>下班后设定"工作禁区"时间，不查看工作消息，给自己真正的休息空间。</p><blockquote>压力不是来自工作本身，而是来自我们对工作的看法。</blockquote>',
-    '<h2>青少年心理健康现状</h2><p>青春期是身心发展的关键阶段，也是心理问题的高发期。据WHO数据，全球10-19岁青少年中，约七分之一存在心理健康问题。</p><h2>常见问题</h2><ul><li>学业压力导致的焦虑</li><li>社交媒体的负面影响</li><li>自我认同困惑</li><li>亲子关系紧张</li></ul><h2>给家长的建议</h2><p><strong>保持沟通渠道开放：</strong>不要只在有问题时才和孩子交流，日常的倾听比批评更重要。</p><p><strong>尊重独立性：</strong>青少年需要一定的自主空间，过度的控制会适得其反。</p><p><strong>关注而非监视：</strong>了解孩子的社交圈和兴趣爱好，以关心的态度而非窥探的方式。</p>',
-    '<h2>睡眠为何重要</h2><p>睡眠是大脑"清理垃圾"的时间。深度睡眠期间，大脑会清除白天积累的代谢废物，巩固记忆，调节情绪。</p><h2>睡眠不足的影响</h2><p>连续一周每天睡眠不足6小时，认知能力下降相当于血液酒精浓度0.1%的状态。长期睡眠不足还与抑郁、焦虑、免疫力下降等密切相关。</p><h2>改善睡眠的实用建议</h2><p><strong>固定作息：</strong>每天在同一时间上床和起床，即使是周末也要保持一致。</p><p><strong>睡前仪式：</strong>睡前一小时放下电子设备，可以阅读纸质书、泡脚、听轻音乐。</p><p><strong>环境优化：</strong>保持卧室凉爽（18-22°C）、安静、黑暗。遮光窗帘和白噪音机器都值得投资。</p><p><strong>减少咖啡因：</strong>下午2点后不再摄入咖啡因，包括咖啡、茶、可乐等。</p>',
-    '<h2>什么是认知行为疗法</h2><p>认知行为疗法（CBT）是目前循证支持最充分的心理治疗方法之一，对抑郁、焦虑、强迫等多种心理问题都有显著效果。</p><h2>核心原理</h2><p>CBT基于一个简单的理念：<strong>影响我们情绪和行为的不是事件本身，而是我们对事件的解读。</strong></p><p>一个经典模型：事件 → 自动思维 → 情绪反应 → 行为。通过识别和挑战不合理的自动思维，可以改变情绪和行为。</p><h2>自助练习</h2><p><strong>思维记录表：</strong>当感到情绪强烈时，写下：情境 → 自动思维 → 情绪（打分1-10）→ 支持证据 → 反对证据 → 替代思维 → 重新评分。</p><blockquote>你不是你的想法，你是观察想法的人。</blockquote>',
-    '<h2>情绪觉察</h2><p>情绪管理的起点是觉察。很多人习惯性地压抑或忽视自己的情绪，这反而会让情绪以更有破坏性的方式爆发。</p><h2>三步调节法</h2><p><strong>第一步：命名情绪。</strong>当你感到不舒服时，停下来问自己："我现在感受到的是什么？是愤怒？悲伤？焦虑？还是失望？"精确命名情绪本身就是一种调节。</p><p><strong>第二步：接纳情绪。</strong>不要评判自己的情绪。所有的情绪都有其存在的意义——愤怒在保护你的边界，悲伤在提醒你失去的重要，焦虑在敦促你做好准备。</p><p><strong>第三步：选择回应。</strong>在接纳之后，你可以选择如何回应情绪，而不是被情绪驱使做出冲动的反应。</p>',
-    '<h2>理解抑郁</h2><p>抑郁不是"心情不好"或"想太多"，而是一种需要认真对待的心理健康问题。全球约有2.8亿人患有抑郁症。</p><h2>识别抑郁信号</h2><ul><li>持续两周以上的情绪低落</li><li>对曾经喜欢的事物失去兴趣</li><li>睡眠和食欲的显著变化</li><li>精力下降、注意力难以集中</li><li>反复出现死亡或自杀的想法</li></ul><h2>走出第一步</h2><p><strong>承认需要帮助：</strong>承认自己需要帮助不是软弱，而是勇气的体现。</p><p><strong>寻求专业帮助：</strong>心理咨询和药物治疗都是有效的干预方式，越早介入效果越好。</p><p><strong>日常小步骤：</strong>每天完成一件小事——起床、洗漱、出门散步5分钟。小步骤积累起来就是大的改变。</p><blockquote>抑郁让我停下来，让我知道自己走错了方向。它不是我的敌人，而是我的导航仪。</blockquote>',
-    '<h2>为什么要自我评估</h2><p>心理健康自我评估不是给自己"贴标签"，而是帮助我们更好地了解自己的心理状态，就像定期量血压一样自然。</p><h2>评估维度</h2><p><strong>情绪状态：</strong>最近一周的情绪基调是什么？是否有频繁的情绪波动？</p><p><strong>睡眠质量：</strong>入睡是否困难？是否早醒？醒来是否精力充沛？</p><p><strong>社交功能：</strong>是否愿意与人交往？社交后是感到充实还是更加疲惫？</p><p><strong>工作/学习状态：</strong>能否集中注意力完成任务？效率是否有明显变化？</p><p><strong>身体信号：</strong>是否有不明原因的头疼、胃痛、肌肉紧张等？</p><h2>重要提醒</h2><p>自我评估不能替代专业诊断。如果你对自己的心理状态感到担忧，请务必咨询专业的心理咨询师或精神科医生。</p>',
-  ]
-
-  const mockArticles = Array.from({ length: 32 }, (_, i) => ({
-    id: i + 1,
-    title: articleTitles[i % 10] + `（${i + 1}）`,
-    category: articleCategories[i % 4],
-    author: '系统管理员',
-    views: Math.floor(Math.random() * 5000) + 100,
-    summary: '这是一篇关于心理健康的知识文章，旨在帮助读者了解相关概念并应用于日常生活。',
-    status: (i % 7 === 0 ? 'offline' : i % 5 === 0 ? 'draft' : 'published') as 'published' | 'draft' | 'offline',
-    createdAt: new Date(2026, 5 - (i % 5), 30 - (i % 30)).toISOString().split('T')[0],
-    // 新增：封面图 + 富文本内容 + 标签
-    coverImage: `https://picsum.photos/seed/mental${i + 1}/400/240`,
-    content: articleContents[i % 10],
-    tags: articleTags[i % 10],
-  }))
-
   // mock 咨询记录数据
   const userNicknames = ['小明', '阿花', '大刘', '小美', '老张', '静静', '阿杰', '小七', '木子', '圆圆']
   const firstMessages = [
@@ -398,89 +349,7 @@ function mockApiPlugin(): Plugin {
     name: 'mock-api',
     configureServer(server) {
       // auth 登录/注册 → 已由真实后端处理，mock 不再拦截
-
-      // ==================== 知识文章：CRUD ====================
-      server.middlewares.use('/api/knowledge/articles', async (req, res, next) => {
-        // GET 列表 / 详情
-        if (req.method === 'GET') {
-          const url = new URL(req.url!, 'http://localhost')
-          // 路径末段是数字 → 详情
-          const id = Number(url.pathname.split('/').pop())
-          if (id) {
-            const article = mockArticles.find((a) => a.id === id)
-            if (!article) return json(res, { code: 404, message: '文章不存在', data: null })
-            return json(res, { code: 200, message: 'ok', data: article })
-          }
-
-          const title = url.searchParams.get('title') || undefined
-          const category = url.searchParams.get('category') || undefined
-          const status = url.searchParams.get('status') || undefined
-          const page = Number(url.searchParams.get('page')) || 1
-          const pageSize = Number(url.searchParams.get('pageSize')) || 10
-
-          let filtered = mockArticles
-          if (title) filtered = filtered.filter((a) => a.title.includes(title))
-          if (category) filtered = filtered.filter((a) => a.category === category)
-          if (status) filtered = filtered.filter((a) => a.status === status)
-
-          const total = filtered.length
-          const start = (page - 1) * pageSize
-          const list = filtered.slice(start, start + pageSize)
-
-          return json(res, { code: 200, message: 'ok', data: { list, total } })
-        }
-
-        // PUT 更新
-        if (req.method === 'PUT') {
-          try {
-            const id = Number(req.url!.split('/').pop()?.split('?')[0])
-            const idx = mockArticles.findIndex((a) => a.id === id)
-            if (idx === -1) return json(res, { code: 404, message: '文章不存在', data: null })
-
-            const body = JSON.parse(await readBody(req))
-            mockArticles[idx] = { ...mockArticles[idx], ...body }
-            return json(res, { code: 200, message: '更新成功', data: mockArticles[idx] })
-          } catch {
-            return json(res, { code: 400, message: '请求格式错误', data: null })
-          }
-        }
-
-        // POST 创建
-        if (req.method === 'POST') {
-          try {
-            const body = JSON.parse(await readBody(req))
-            const newArticle = {
-              id: mockArticles.length + 1,
-              title: body.title || '',
-              content: body.content || '',
-              category: body.category || 'mental-health',
-              author: '系统管理员',
-              summary: body.summary || '',
-              coverImage: body.coverImage || '',
-              tags: body.tags || [],
-              status: 'draft' as const,
-              views: 0,
-              createdAt: new Date().toISOString().split('T')[0],
-            }
-            mockArticles.unshift(newArticle)
-            return json(res, { code: 200, message: '创建成功', data: newArticle })
-          } catch {
-            return json(res, { code: 400, message: '请求格式错误', data: null })
-          }
-        }
-
-        // DELETE 删除
-        if (req.method === 'DELETE') {
-          const id = Number(req.url!.split('/').pop()?.split('?')[0])
-          const idx = mockArticles.findIndex((a) => a.id === id)
-          if (idx === -1) return json(res, { code: 404, message: '文章不存在', data: null })
-
-          mockArticles.splice(idx, 1)
-          return json(res, { code: 200, message: '删除成功', data: null })
-        }
-
-        next()
-      })
+      // knowledge 文章 CRUD → 已由真实后端处理（server/src/routes/knowledge.ts），mock 不再拦截
 
       // ==================== 咨询记录 ====================
       server.middlewares.use('/api/consultations/records', async (req, res, next) => {
@@ -1006,17 +875,7 @@ function mockApiPlugin(): Plugin {
         next()
       })
 
-      // ==================== 文件上传 ====================
-      server.middlewares.use('/api/file/upload', async (req, res, next) => {
-        if (req.method !== 'POST') return next()
-
-        // mock：直接返回一个假 URL，不真实存储文件
-        json(res, {
-          code: 200,
-          message: 'ok',
-          data: { url: 'https://picsum.photos/400/240' },
-        })
-      })
+      // file/upload → 已由真实后端处理（server/src/routes/file.ts），mock 不再拦截
     },
   }
 }
@@ -1028,6 +887,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/uploads': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

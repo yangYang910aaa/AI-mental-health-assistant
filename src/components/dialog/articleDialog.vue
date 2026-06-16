@@ -73,6 +73,7 @@ import type { FormInstance, UploadRequestOptions } from 'element-plus'
 import type { ArticleCategory } from '@/api/knowledge'
 import { createArticle, updateArticle } from '@/api/knowledge'
 import type { Article } from '@/api/knowledge'
+import { uploadFile } from '@/api/file'
 import { ElMessage } from 'element-plus'
 
 // 富文本编辑器
@@ -177,35 +178,18 @@ const beforeUpload = (file: File) => {
 const handleUploadRequest = async (options: UploadRequestOptions) => {
   uploading.value = true
 
-  // mock 模式：FileReader 转 data URL 直接用于预览和存储。
-  // 后端就绪后，把 reader 这块替换为下面的 uploadFile 调用即可。
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const url = e.target?.result as string
-    coverUrl.value = url
-    formData.coverImage = url
+  // 真实后端上传
+  try {
+    const result = await uploadFile(options.file)//result:{url:'}
+    coverUrl.value = result.url
+    formData.coverImage = result.url
     uploading.value = false
-    options.onSuccess({ url })
-  }
-  reader.onerror = () => {
+    options.onSuccess({ url: result.url })
+  } catch {
     uploading.value = false
-    ElMessage.error('图片读取失败')
-    options.onError(new Error('读取失败') as any)
+    ElMessage.error('封面上传失败')
+    options.onError(new Error('上传失败') as any)
   }
-  reader.readAsDataURL(options.file)
-
-  // —— 真实后端上传（下面注释留着，后端好了启用）——
-  // try {
-  //   const result = await uploadFile(options.file)
-  //   coverUrl.value = result.url
-  //   formData.coverImage = result.url
-  //   options.onSuccess(result)
-  // } catch {
-  //   ElMessage.error('封面上传失败')
-  //   options.onError(new Error('上传失败') as any)
-  // } finally {
-  //   uploading.value = false
-  // }
 }
 
 // 移除封面图片
@@ -244,15 +228,12 @@ const editorConfig: Partial<IEditorConfig> = {
       // 自定义上传：接入项目的 uploadFile，
       // 后端好了之后图片就能直接存入服务器
       async customUpload(file: File, insertFn: (url: string) => void) {
-        // mock：同样用 FileReader 转 data URL，后端好了换 uploadFile
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          insertFn(e.target?.result as string)
-        }
-        reader.onerror = () => {
+        try {
+          const result = await uploadFile(file)
+          insertFn(result.url)
+        } catch {
           ElMessage.error('图片上传失败')
         }
-        reader.readAsDataURL(file)
       },
     },
   },

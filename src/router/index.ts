@@ -1,4 +1,5 @@
 import { createRouter,createWebHistory } from "vue-router";
+import { validateToken } from '@/api/auth'
 
 // 路由名称常量，方便全局引用和跳转
 export const ROUTE_NAMES = {
@@ -133,16 +134,33 @@ const router = createRouter({
 })
 
 // ==================== 导航守卫 ====================
-router.beforeEach((to, _from, next) => {
+
+/** 是否已完成首次 token 验证 */
+let tokenChecked = false
+/** 验证结果：true = token 有效 */
+let tokenValid = false
+
+router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('token')
+
+  // —— 首次进入时，向后端验证 token ——
+  if (token && !tokenChecked) {
+    const userInfo = await validateToken()
+    tokenChecked = true
+    tokenValid = !!userInfo
+    if (!tokenValid) {
+      // token 无效，清掉残留
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
+    }
+  }
 
   // —— /back/* 后台路由：需登录 + 管理员角色 ——
   if (to.path.startsWith('/back')) {
-    if (!token) {
+    if (!tokenValid && !token) {
       next({ path: '/auth/login', query: { redirect: to.fullPath } })
       return
     }
-    // 校验管理员角色
     try {
       const raw = localStorage.getItem('userInfo')
       const userInfo = raw ? JSON.parse(raw) : null
@@ -158,14 +176,14 @@ router.beforeEach((to, _from, next) => {
 
   // —— /user/* 用户端路由：需登录 ——
   if (to.path.startsWith('/user')) {
-    if (!token) {
+    if (!tokenValid && !token) {
       next({ path: '/auth/login', query: { redirect: to.fullPath } })
       return
     }
   }
 
   // —— /auth/* 认证路由：已登录则按角色分流 ——
-  if (to.path.startsWith('/auth') && token) {
+  if (to.path.startsWith('/auth') && token && tokenValid) {
     try {
       const raw = localStorage.getItem('userInfo')
       const userInfo = raw ? JSON.parse(raw) : null

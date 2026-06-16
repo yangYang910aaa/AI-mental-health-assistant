@@ -62,8 +62,7 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   ├── routes/
 │   │   └── auth.ts                    # POST /api/auth/login + register（JSON Schema 校验）
 │   └── middleware/
-│       ├── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
-│       └── errorHandler.ts            # 全局错误兜底（备用，Fastify 自带 setErrorHandler）
+│       └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
 ├── prisma/
 │   ├── schema.prisma                  # 数据模型：User/MoodRecord/ChatSession/ChatMessage/Article
 │   ├── seed.ts                        # 种子：2 用户 + 5 文章 + 5 心情 + 1 会话(6 条消息)
@@ -311,7 +310,7 @@ deleteArticle(id)               // DELETE /knowledge/articles/:id
 
 ```ts
 // 类型
-Consultation { id, userId, userNickName, aiName, lastMessageContent, lastMessageTime, messageCount, startedAt, messages?: Message[] }
+Consultation { id, userId, userNickName, aiName, firstMessage, lastMessageTime, messageCount, startedAt, messages?: Message[] }
 Message { id, sender: 'user' | 'assistant', content, time }
 ConsultationListParams { page, pageSize }
 ConsultationListResult { list: Consultation[], total: number }
@@ -392,7 +391,7 @@ deleteEmotional(id)               // DELETE /emotional/records/:id
 
 ### 技术要点
 
-- **ECharts 按需引入**：`main.ts` 注册 CanvasRenderer + LineChart/BarChart/PieChart + 8 个交互组件（含 MarkLine/MarkArea/MarkPoint）
+- **ECharts 按需引入**：`main.ts` 注册 CanvasRenderer + LineChart/BarChart/PieChart + 9 个交互组件（Title、Tooltip、Legend、Grid、Toolbox、Graphic、MarkLine、MarkArea、MarkPoint）
 - **三个趋势图独立切换**：每个图维护自己的 `range` 状态和趋势数据，切换一个不影响另外两个
 - **HTML 图例**：情绪趋势图的"良好/一般/关注"图例用 HTML 实现，避免 ECharts 内部 label 和折线重叠
 - **KPI 与 mock 数据联动**：所有 KPI 和分布图数据来源于 `mockEmotionals` / `mockConsultations`，趋势图以真实均值为基线加随机波动

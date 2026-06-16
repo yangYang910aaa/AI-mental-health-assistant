@@ -13,8 +13,8 @@ async function main() {
   await prisma.user.deleteMany()
 
   // ==================== 用户 ====================
-  const adminHash = await bcrypt.hash('admin123', 10)
-  const userHash = await bcrypt.hash('123456', 10)
+  const adminHash = await bcrypt.hash('admin123', 10) //加密管理员密码
+  const userHash = await bcrypt.hash('123456', 10) //加密普通用户密码
 
   const admin = await prisma.user.create({
     data: { username: 'admin', passwordHash: adminHash, nickname: '管理员', role: 'admin' },
@@ -31,6 +31,7 @@ async function main() {
       content: '<h2>认识焦虑</h2><p>焦虑是人类面对压力时的正常反应...</p>',
       category: 'mental-health',
       author: '系统管理员',
+      coverImage: 'https://picsum.photos/seed/anxiety-relief/400/240',
       summary: '了解焦虑的成因，掌握深呼吸、运动、书写疗愈等实用缓解方法。',
       tags: JSON.stringify(['焦虑', '情绪管理', '放松']),
       status: 'published',
@@ -41,6 +42,7 @@ async function main() {
       content: '<h2>什么是正念冥想</h2><p>正念是一种有意识地、不加评判地关注当下的心理训练方法。</p>',
       category: 'emotion-management',
       author: '系统管理员',
+      coverImage: 'https://picsum.photos/seed/mindfulness-meditation/400/240',
       summary: '哈佛大学研究表明，每天10分钟正念练习就能显著改善心理健康。',
       tags: JSON.stringify(['冥想', '正念', '自我成长']),
       status: 'published',
@@ -51,6 +53,7 @@ async function main() {
       content: '<h2>健康关系的基础</h2><p>人际关系是心理健康的重要支柱。</p>',
       category: 'relationships',
       author: '系统管理员',
+      coverImage: 'https://picsum.photos/seed/healthy-relationships/400/240',
       summary: '从积极倾听到表达感激，五个关键方法改善你的人际关系。',
       tags: JSON.stringify(['人际关系', '心理健康']),
       status: 'published',
@@ -61,6 +64,7 @@ async function main() {
       content: '<h2>职场压力的来源</h2><p>职场压力是现代社会最常见的压力源之一。</p>',
       category: 'stress-coping',
       author: '系统管理员',
+      coverImage: 'https://picsum.photos/seed/workplace-stress/400/240',
       summary: '番茄工作法、合理期望、社交支持——应对职场压力的实用策略。',
       tags: JSON.stringify(['工作压力', '压力', '生活技巧']),
       status: 'published',
@@ -71,6 +75,7 @@ async function main() {
       content: '<h2>睡眠为何重要</h2><p>睡眠是大脑清理垃圾的时间。</p>',
       category: 'mental-health',
       author: '系统管理员',
+      coverImage: 'https://picsum.photos/seed/sleep-health/400/240',
       summary: '睡眠不足如何影响心理健康，以及改善睡眠的五个实用建议。',
       tags: JSON.stringify(['睡眠', '放松', '焦虑']),
       status: 'published',

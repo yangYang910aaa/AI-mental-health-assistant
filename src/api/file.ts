@@ -1,5 +1,3 @@
-import request from '@/utils/request'
-
 /** 上传返回 */
 export interface UploadResult {
   url: string
@@ -8,17 +6,17 @@ export interface UploadResult {
 /**
  * 上传文件（图片、文档等）
  *
- * @param file - 待上传的 File 对象
- * @returns 文件访问 URL
- *
- * @example
- *   const result = await uploadFile(options.file)
- *   formData.coverImage = result.url
+ * 用原生 fetch 而非 axios——axios 默认 Content-Type: application/json 会干扰 multipart
  */
 export const uploadFile = async (file: File): Promise<UploadResult> => {
   const fd = new FormData()
   fd.append('file', file)
 
-  // 不手动设 Content-Type——浏览器自动带正确的 boundary
-  return request.post<UploadResult>('/file/upload', fd)
+  // 不设 Content-Type，浏览器自动带 multipart/form-data + boundary
+  const res = await fetch('/api/file/upload', { method: 'POST', body: fd })
+  const body = await res.json()
+  if (!res.ok || body.code !== 200) {
+    throw new Error(body.message || '上传失败')
+  }
+  return body.data as UploadResult
 }

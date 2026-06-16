@@ -35,7 +35,26 @@ export const loginApi = (params: LoginParams) =>
 export const registerApi = (params: RegisterParams) =>
   request.post<void>('/auth/register', params)
 
-/** 退出登录：清除本地状态 + 跳转登录页（后端若有注销接口可在这里对接） */
+/** 验证 token 是否有效，有效则返回最新 UserInfo */
+export const validateToken = async (): Promise<UserInfo | null> => {
+  const token = localStorage.getItem('token')
+  if (!token) return null
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return null
+    const body = await res.json()
+    if (body.code !== 200) return null
+    // 同步更新 localStorage 中的 userInfo
+    localStorage.setItem('userInfo', JSON.stringify(body.data))
+    return body.data as UserInfo
+  } catch {
+    return null
+  }
+}
+
+/** 退出登录：清除本地状态 + 跳转登录页 */
 export const logout = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('userInfo')

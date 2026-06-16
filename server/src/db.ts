@@ -7,4 +7,6 @@ const DATABASE_URL = process.env.DATABASE_URL || 'mysql://root:password@localhos
 // PrismaMariaDb 是工厂类，内部使用 mariadb 驱动
 // 传 URL 字符串即可，connect() 由 Prisma 内部调用
 const adapter = new PrismaMariaDb(DATABASE_URL)
+
+//创建prisma客户端,后续的所有数据库操作都通过prisma
 export const prisma = new PrismaClient({ adapter })

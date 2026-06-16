@@ -83,7 +83,7 @@ const resolveHttpErrorMessage = (error: any): string => {
     case 503: return '服务暂不可用'
     case 504: return '网关超时'
     default:  return '网络异常，请稍后重试'
-  }
+  } 
 }
 
 // ==================== Axios 实例 ====================

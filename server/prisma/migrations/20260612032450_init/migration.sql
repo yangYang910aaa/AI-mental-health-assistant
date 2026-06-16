@@ -57,7 +57,7 @@ CREATE TABLE `Article` (
     `content` LONGTEXT NOT NULL,
     `category` VARCHAR(50) NOT NULL,
     `author` VARCHAR(50) NOT NULL,
-    `coverImage` VARCHAR(500) NULL,
+    `coverImage` MEDIUMTEXT NULL,
     `summary` VARCHAR(1000) NULL,
     `tags` JSON NULL,
     `status` VARCHAR(20) NOT NULL DEFAULT 'draft',
