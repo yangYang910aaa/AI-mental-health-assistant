@@ -1,10 +1,12 @@
 # mental-health — AI 心理健康助手
 
-Vue 3 + TypeScript + Vite 管理后台前端项目。当前处于**前端先行**阶段，所有 API 通过 vite.config.ts mock 拦截，后端开发后移除 mock 插件即可对接。
+Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），认证（登录/注册）已对接真实数据库，其余 API 仍由 vite.config.ts mock 接管，逐步迁移中。
 
 ---
 
 ## 技术栈
+
+### 前端
 
 | 类别 | 选型 | 版本 |
 |------|------|------|
@@ -20,13 +22,32 @@ Vue 3 + TypeScript + Vite 管理后台前端项目。当前处于**前端先行*
 | 富文本 | wangEditor v5（`@wangeditor/editor-for-vue`） | ^5.1 |
 | 请求 | Axios | ^1.17 |
 
+### 后端
+
+| 类别 | 选型 | 版本 |
+|------|------|------|
+| 运行时 | Node.js | v24.16 |
+| 框架 | Fastify 5（原生 TypeScript，零 @types/* 依赖） | ^5.8 |
+| ORM | Prisma 7 + `@prisma/adapter-mariadb` | ^7.8 |
+| 数据库 | MySQL（通过 mariadb 驱动连接） | — |
+| 认证 | JWT（`jsonwebtoken`）+ bcryptjs 密码加密 | — |
+| 校验 | Fastify 内置 JSON Schema | — |
+
 ## 常用命令
 
 ```bash
-pnpm dev          # 启动开发服务器（默认 http://localhost:5173）
-pnpm build        # 类型检查 + 构建（vue-tsc -b && vite build）
-pnpm preview      # 预览构建产物
-pnpm add <pkg>    # 安装依赖
+# 前端
+pnpm dev              # 启动前端（http://localhost:5173）
+pnpm build            # 类型检查 + 构建
+
+# 后端（先 cd server）
+pnpm dev              # 启动后端（http://localhost:3000）
+pnpm db:migrate       # Prisma 数据库迁移
+pnpm db:seed          # 填充种子数据
+pnpm db:studio        # Prisma 可视化管理
+
+# 一键启动前后端
+pnpm dev:all          # concurrently 同时跑前端 + 后端
 ```
 
 ---
@@ -34,6 +55,23 @@ pnpm add <pkg>    # 安装依赖
 ## 目录结构与文件职责
 
 ```
+server/                                # 后端（Fastify + Prisma 7 + MySQL）
+├── src/
+│   ├── index.ts                       # Fastify 入口，注册插件/路由，监听 :3000
+│   ├── db.ts                          # Prisma 7 客户端（mariadb 适配器 + dotenv）
+│   ├── routes/
+│   │   └── auth.ts                    # POST /api/auth/login + register（JSON Schema 校验）
+│   └── middleware/
+│       ├── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
+│       └── errorHandler.ts            # 全局错误兜底（备用，Fastify 自带 setErrorHandler）
+├── prisma/
+│   ├── schema.prisma                  # 数据模型：User/MoodRecord/ChatSession/ChatMessage/Article
+│   ├── seed.ts                        # 种子：2 用户 + 5 文章 + 5 心情 + 1 会话(6 条消息)
+│   └── migrations/                    # Prisma 迁移历史
+├── prisma.config.ts                   # Prisma 7 连接配置（datasource.url）
+├── .env                               # DATABASE_URL + JWT_SECRET（不入 git）
+└── package.json                       # 独立依赖（fastify/prisma/bcryptjs/jsonwebtoken）
+
 src/
 ├── main.ts                          # 入口：createPinia + ElementPlus + Router + 全局图标注册
 ├── App.vue                          # 根组件，仅 <router-view>
@@ -452,39 +490,83 @@ getUserMoods(userId, page, size)     // GET /user/mood
 
 | 接口 | 方法 | 状态 |
 |------|------|------|
-| `/api/auth/login` | POST | ✅ mock（admin/user 按用户名区分角色） |
-| `/api/auth/register` | POST | ✅ mock（含用户名重复校验） |
-| `/api/knowledge/articles` | GET | ✅ mock |
-| `/api/knowledge/articles` | POST | ✅ mock |
-| `/api/knowledge/articles/:id` | GET | ✅ mock（新增详情接口） |
-| `/api/knowledge/articles/:id` | PUT | ✅ mock |
-| `/api/knowledge/articles/:id` | DELETE | ✅ mock |
-| `/api/consultations/records` | GET | ✅ mock |
-| `/api/consultations/records/:id` | GET | ✅ mock |
-| `/api/consultations/records/:id` | DELETE | ✅ mock |
-| `/api/emotional/records` | GET | ✅ mock |
-| `/api/emotional/records/:id` | GET | ✅ mock |
-| `/api/emotional/records/:id` | DELETE | ✅ mock |
-| `/api/dashboard` | GET | ✅ mock |
+| `/api/auth/login` | POST | ✅ 真实后端（MySQL 查用户 + bcrypt + JWT） |
+| `/api/auth/register` | POST | ✅ 真实后端（MySQL 写入 + 用户名去重） |
+| `/api/knowledge/articles` | GET | ⚠️ mock |
+| `/api/knowledge/articles` | POST | ⚠️ mock |
+| `/api/knowledge/articles/:id` | GET | ⚠️ mock |
+| `/api/knowledge/articles/:id` | PUT | ⚠️ mock |
+| `/api/knowledge/articles/:id` | DELETE | ⚠️ mock |
+| `/api/consultations/records` | GET | ⚠️ mock |
+| `/api/consultations/records/:id` | GET | ⚠️ mock |
+| `/api/consultations/records/:id` | DELETE | ⚠️ mock |
+| `/api/emotional/records` | GET | ⚠️ mock |
+| `/api/emotional/records/:id` | GET | ⚠️ mock |
+| `/api/emotional/records/:id` | DELETE | ⚠️ mock |
+| `/api/dashboard` | GET | ⚠️ mock |
 | `/api/file/upload` | POST | ⚠️ mock 返回随机图 |
-| `/api/user/home` | GET | ✅ mock（含自动补数据） |
-| `/api/user/chat/sessions` | GET | ✅ mock |
-| `/api/user/chat/sessions/:id` | GET | ✅ mock |
-| `/api/user/chat/send` | POST | ✅ mock |
-| `/api/user/mood` | GET/POST | ✅ mock |
+| `/api/user/home` | GET | ⚠️ mock（含自动补数据） |
+| `/api/user/chat/sessions` | GET | ⚠️ mock |
+| `/api/user/chat/sessions/:id` | GET | ⚠️ mock |
+| `/api/user/chat/send` | POST | ⚠️ mock（随机回复，与用户输入无关） |
+| `/api/user/mood` | GET/POST | ⚠️ mock |
+| `/api/user/mood/:id` | DELETE | ⚠️ mock |
+
+> ✅ = 真实后端  ⚠️ = 仍在 vite.config.ts mock 插件中
 
 ---
 
-## 待办事项
+## 接下来要做的事
 
-| 模块 | 内容 | 优先级 |
-|------|------|--------|
-| AI 聊天 | mock 回复改为关键词匹配，和用户输入相关 | 🔴 当前 |
-| 用户端页面 | 完善各页面功能、交互细节 | 🔴 当前 |
-| 个人中心 | userProfile.vue 完整实现（共享 accountSettings 组件） | 🟡 |
-| 后端对接 | 移除 mock 插件，接真实 API | 🔴 |
-| 代码整理 | 提取重复的 CSS（table 样式、登录/注册卡片）为公共 mixin | 🟢 |
-| 代码整理 | 提取 `formatTime` 到 `utils/format.ts` 共享 | 🟢 |
+### 🔴 第一优先级：逐步迁移 mock → 真实后端
+
+当前只有 `/api/auth/*` 接入了真实数据库。其余接口仍在 `vite.config.ts` mock 中。
+按顺序逐个迁移到 `server/src/routes/`：
+
+| 顺序 | 模块 | 涉及表 | 需新增路由文件 |
+|------|------|--------|---------------|
+| 1 | 知识文章 CRUD | Article | `server/src/routes/knowledge.ts` |
+| 2 | 心情记录 | MoodRecord | `server/src/routes/mood.ts` |
+| 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` |
+| 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` |
+| 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` |
+| 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` |
+| 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` |
+| 8 | 文件上传 | 文件存储 | `server/src/routes/file.ts` |
+
+每迁移一个模块，就删除 `vite.config.ts` 中对应的 mock handler。
+全部迁移完成后，删除整个 mock 插件。
+
+### 🔴 第二优先级：AI 对话接入 Claude API
+
+`userChat.vue` 当前 mock 回复为随机预设文案，与用户输入无关。
+需在 `server/src/routes/chat.ts` 中接入 Claude API：
+
+- 安装 `@anthropic-ai/sdk`
+- 编写 System Prompt（定义 AI 为"宁渡"心理健康助手）
+- 支持流式 SSE 响应（打字机效果）
+- 方案演进：直调 LLM → 注入知识库文章 → 接入工具调用（查情绪历史等）
+
+详见 CLAUDE.md 末尾"AI 对话方案"章节。
+
+### 🟡 第三优先级：功能完善
+
+| 模块 | 内容 |
+|------|------|
+| 个人中心 | `userProfile.vue` 完整实现（编辑资料、修改密码） |
+| AI 情绪分析 | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
+| 代码整理 | 提取 `formatTime` 到 `utils/format.ts` 共享 |
+| 代码整理 | 提取重复 CSS（table 样式、卡片）为公共样式 |
+
+---
+
+## 已修复的问题
+
+- **登录 401 跳页**：`request.ts` 中 401 处理排除 `/auth/login` 路径，密码错误不再触发跳转
+- **退出登录 dropdown 压扁**：`userNav.vue` 加 `:teleported="false"` + `transition: none`
+- **`@types/express` 版本冲突**：Express → Fastify 后彻底消除，零 `@types/*` 依赖
+- **心情记录删除**：`userMood.vue` 新增删除按钮，末页边界处理
+- **mock 文章数据缺失**：补全 `coverImage` / `content` / `tags` 三个字段
 
 ---
 
@@ -509,6 +591,58 @@ getUserMoods(userId, page, size)     // GET /user/mood
 ## 路径别名
 
 - `@` → `./src`，`vite.config.ts` + `tsconfig.app.json` 双端配置
+
+---
+
+## AI 对话方案
+
+### 整体架构
+
+```
+浏览器 → Vue 前端 → server/src/routes/chat.ts → Claude API
+                         ↓
+                    Prisma → MySQL（会话/消息持久化）
+```
+
+### 方案一：直调 LLM（起步）
+
+在 `server/src/routes/chat.ts` 中，`POST /api/user/chat/send` 接到消息后：
+
+1. 从 MySQL 读取当前会话的历史消息
+2. 拼装 System Prompt（定义 AI 为"宁渡"心理健康助手，温暖共情风格）
+3. 调用 `@anthropic-ai/sdk`，流式 SSE 返回
+4. 消息落库保存
+
+**新增依赖**：`@anthropic-ai/sdk`
+**前端改动**：无（API 路径不变，只是 mock → 真实 AI）
+
+### 方案二：+ 知识库注入
+
+在方案一的基础上，用关键词匹配将已有的知识文章片段注入 prompt：
+
+```
+用户消息 → 匹配相关文章标题/标签 → 拼入 System Prompt → LLM 生成
+```
+
+不上向量数据库，直接用 MySQL `LIKE` 或全文索引做关键词匹配。
+
+### 方案三：+ Agent 工具调用
+
+给 AI 配 Function Calling / Tool Use：
+
+- `getMoodHistory(days)` → 查用户近期情绪趋势
+- `searchKnowledge(query)` → 搜知识库
+- `suggestExercise(type)` → 推荐呼吸法/正念练习
+
+AI 能"看到"用户的历史情绪数据，给出个性化建议。
+
+### 分步实施建议
+
+1. 先完成所有 CRUD 接口迁移（mock → 真实后端），会话和消息能持久化
+2. 再接 Claude API（方案一），保证基础对话流畅
+3. 效果满意后按需升级到方案二/三
+
+---
 
 ## Git 仓库
 
