@@ -76,6 +76,16 @@ export const TAGS: string[] = [
 
 // ==================== API ====================
 
+/** 标题联想结果 */
+export interface TitleSuggestion {
+  id: number
+  title: string
+}
+
+/** 根据关键词获取匹配的文章标题（最多 10 条） */
+export const fetchTitleSuggestions = (title: string) =>
+  request.get<TitleSuggestion[]>('/knowledge/articles/suggestions', { params: { title } })
+
 /** 获取文章列表 */
 export const fetchArticles = (params: ArticleListParams) =>
   request.get<ArticleListResult>('/knowledge/articles', { params })

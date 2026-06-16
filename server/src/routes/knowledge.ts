@@ -46,6 +46,25 @@ const updateArticleBodySchema = {
 
 export async function knowledgeRoutes(app: FastifyInstance) {
 
+  // ========== 标题联想 /api/knowledge/articles/suggestions —— 输入关键词匹配标题（公开） ==========
+  //必须注册在 /api/knowledge/articles/:id 之前，否则 "suggestions" 会被当成 :id 解析
+  app.get('/api/knowledge/articles/suggestions', async (request, reply) => {
+    const { title } = request.query as { title?: string }
+
+    if (!title || title.trim().length === 0) {
+      return reply.send({ code: 200, message: 'ok', data: [] })
+    }
+
+    const articles = await prisma.article.findMany({
+      where: { title: { contains: title.trim() } },
+      select: { id: true, title: true },
+      take: 10,
+      orderBy: { id: 'desc' },
+    })
+
+    return reply.send({ code: 200, message: 'ok', data: articles })
+  })
+
   // ========== 文章列表 /api/knowledge/articles —— 列表（公开） ==========
   app.get('/api/knowledge/articles', async (request, reply) => {
     const { title, category, status, page: pageStr, pageSize: pageSizeStr } =

@@ -8,7 +8,11 @@
                           v-model="formData[item.prop]"
                           :is="isComp(item.comp)"
                           :placeholder="item.placeholder"
-                          :clearable="item.comp === 'input'"
+                          :clearable="item.comp !== 'select'"
+                          :fetch-suggestions="item.fetchSuggestions"
+                          :trigger-on-focus="item.triggerOnFocus"
+                          :value-key="item['value-key']"
+                          @select="item.onSelect"
                           @change="item.comp === 'select' && submitForm()"
                         >
                             <template v-if="item.comp==='select'">
@@ -61,6 +65,7 @@ const props = defineProps({
 const COMP_MAP: Record<string, string> = {
   input: 'el-input',
   select: 'el-select',
+  autocomplete: 'el-autocomplete',
 }
 
 const isComp = (comp: string): string => {

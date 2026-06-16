@@ -81,15 +81,31 @@ import { reactive, ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import pageHead from '@/components/admin-page/pageHead.vue'
 import tableSearch from '@/components/admin-page/tableSearch.vue'
-import { fetchArticles, CATEGORIES, updateArticle, deleteArticle } from '@/api/knowledge'
-import type { Article } from '@/api/knowledge'
+import { fetchArticles, CATEGORIES, updateArticle, deleteArticle, fetchTitleSuggestions } from '@/api/knowledge'
+import type { Article, TitleSuggestion } from '@/api/knowledge'
 import articleDialog from '@/components/dialog/articleDialog.vue'
 import { TAGS } from '@/api/knowledge'
 import { Plus } from '@element-plus/icons-vue'
 
 // ==================== 搜索表单 ====================
 const formItem = [
-  { label: '文章标题', prop: 'title', comp: 'input', placeholder: '请输入文章标题' },
+  {
+    label: '文章标题', prop: 'title', comp: 'autocomplete',
+    placeholder: '请输入文章标题',
+    'value-key': 'title',//联想结果的标题字段
+    triggerOnFocus: false,//不自动触发联想
+    // 自定义联想函数
+    fetchSuggestions: async (queryString: string, cb: (results: TitleSuggestion[]) => void) => {
+      if (!queryString || queryString.trim().length === 0) return cb([])
+      const result = await fetchTitleSuggestions(queryString.trim())
+      cb(result)
+    },
+    onSelect: (item: TitleSuggestion) => {
+      searchParams.title = item.title
+      pagination.page = 1
+      loadData()
+    },
+  },
   {
     label: '文章分类',prop: 'category',
     comp: 'select',
