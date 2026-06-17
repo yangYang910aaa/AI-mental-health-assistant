@@ -102,4 +102,83 @@ export async function authRoutes(app: FastifyInstance) {
       },
     })
   })
+
+  // ==================== JSON Schema（profile + password） ====================
+
+  const updateProfileBodySchema = {
+    type: 'object',
+    properties: {
+      nickname: { type: 'string', minLength: 1, maxLength: 50 },
+      avatar:   { type: 'string', minLength: 1, maxLength: 500 },
+    },
+  } as const
+
+  const changePasswordBodySchema = {
+    type: 'object',
+    required: ['oldPassword', 'newPassword'],
+    properties: {
+      oldPassword: { type: 'string' },       // 旧密码不限制长度，交给 handler 用 bcrypt 比对
+      newPassword: { type: 'string', minLength: 6 },
+    },
+  } as const
+
+  // ========== 更新个人资料 /api/auth/profile ==========
+  app.put('/api/auth/profile', {
+    schema: { body: updateProfileBodySchema },
+    preHandler: [requireAuth],
+  }, async (request, reply) => {
+    const user = (request as any).user as { userId: number }
+    const body = request.body as { nickname?: string; avatar?: string }
+
+    // 部分更新：只更新传入的字段
+    const data: Record<string, unknown> = {}
+    if (body.nickname !== undefined) data.nickname = body.nickname
+    if (body.avatar !== undefined)   data.avatar   = body.avatar
+
+    if (Object.keys(data).length === 0) {
+      return reply.status(400).send({ code: 400, message: '至少需要修改一项', data: null })
+    }
+
+    const updated = await prisma.user.update({ where: { id: user.userId }, data })
+
+    return reply.send({
+      code: 200,
+      message: '保存成功',
+      data: {
+        id: updated.id,
+        username: updated.username,
+        nickname: updated.nickname ?? updated.username,
+        avatar: updated.avatar ?? '',
+        roles: [updated.role],
+      },
+    })
+  })
+
+  // ========== 修改密码 /api/auth/password ==========
+  app.put('/api/auth/password', {
+    schema: { body: changePasswordBodySchema },
+    preHandler: [requireAuth],
+  }, async (request, reply) => {
+    const user = (request as any).user as { userId: number }
+    const { oldPassword, newPassword } = request.body as { oldPassword: string; newPassword: string }
+
+    if (oldPassword === newPassword) {
+      return reply.status(400).send({ code: 400, message: '新密码不能与旧密码相同', data: null })
+    }
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
+    if (!dbUser) {
+      return reply.status(404).send({ code: 404, message: '用户不存在', data: null })
+    }
+
+    const valid = await bcrypt.compare(oldPassword, dbUser.passwordHash)
+    if (!valid) {
+      return reply.status(400).send({ code: 400, message: '原密码错误', data: null })
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10)
+    await prisma.user.update({ where: { id: user.userId }, data: { passwordHash } })
+
+    return reply.send({ code: 200, message: '密码修改成功', data: null })
+  })
 }

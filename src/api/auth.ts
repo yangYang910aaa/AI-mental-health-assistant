@@ -60,3 +60,13 @@ export const logout = () => {
   localStorage.removeItem('userInfo')
   window.location.href = '/auth/login'
 }
+
+// ==================== 个人中心 ====================
+
+/** 更新个人资料（昵称 / 头像） */
+export const updateProfile = (params: { nickname?: string; avatar?: string }) =>
+  request.put<UserInfo>('/auth/profile', params)
+
+/** 修改密码 */
+export const changePassword = (params: { oldPassword: string; newPassword: string }) =>
+  request.put<void>('/auth/password', params)

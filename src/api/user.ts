@@ -83,7 +83,6 @@ export const sendMessage = (sessionId: number | null, content: string, userId: n
 /** 创建心情记录参数 */
 export interface CreateMoodParams {
   userId: number
-  userName: string
   moodScore: number
   moodLabel: string
   content: string

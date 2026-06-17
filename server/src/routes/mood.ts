@@ -10,7 +10,6 @@ const createMoodBodySchema = {
   required: ['userId', 'moodScore', 'moodLabel'],
   properties: {
     userId:        { type: 'number' },
-    userName:      { type: 'string' },
     moodScore:     { type: 'number', minimum: 1, maximum: 10 },
     moodLabel:     { type: 'string', minLength: 1 },
     moodTrigger:   { type: 'string' },
@@ -29,13 +28,12 @@ export async function moodRoutes(app: FastifyInstance) {
     schema: { body: createMoodBodySchema },
   }, async (request, reply) => {
     const body = request.body as {
-      userId: number; 
-      userName?: string; 
-      moodScore: number; 
+      userId: number;
+      moodScore: number;
       moodLabel: string
-      content?: string; 
-      moodTrigger?: string; 
-      sleepDuration?: number; 
+      content?: string;
+      moodTrigger?: string;
+      sleepDuration?: number;
       pressureLevel?: number
     }
 
@@ -96,7 +94,7 @@ export async function moodRoutes(app: FastifyInstance) {
     return reply.send({ code: 200, message: 'ok', data: { list, total } })
   })
 
-  // ========== 心情记录详情 /api/user/mood/:id —— 详情（公开） ==========
+  // ========== 心情记录详情 /api/user/mood/:id —— 详情 ==========
   // 必须注册在 DELETE 之前，否则 :id 会被 DELETE 先匹配
   app.get('/api/user/mood/:id', async (request, reply) => {
     const { id } = request.params as { id: string }

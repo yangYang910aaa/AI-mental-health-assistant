@@ -1,34 +1,126 @@
 // @ts-nocheck
 import bcrypt from 'bcryptjs'
 import { prisma } from '../src/db.js'
+import { AI_DATA, MOOD_CONTENTS, MOOD_TRIGGERS, SCORE_RANGE, sleepPressure } from '../scripts/seed-data.js'
+
+// ==================== 种子主函数 ====================
 
 async function main() {
-  console.log('🌱 开始填充种子数据…')
+  console.log('🌱 开始填充种子数据…\n')
 
-  // ==================== 清理旧数据 ====================
+  // ==================== 清理 + 重置自增 ID ====================
   await prisma.chatMessage.deleteMany()
   await prisma.chatSession.deleteMany()
   await prisma.moodRecord.deleteMany()
   await prisma.article.deleteMany()
   await prisma.user.deleteMany()
 
-  // ==================== 用户 ====================
-  const adminHash = await bcrypt.hash('admin123', 10) //加密管理员密码
-  const userHash = await bcrypt.hash('123456', 10) //加密普通用户密码
+  await prisma.$executeRawUnsafe('ALTER TABLE User AUTO_INCREMENT = 1')
+  await prisma.$executeRawUnsafe('ALTER TABLE Article AUTO_INCREMENT = 1')
+  await prisma.$executeRawUnsafe('ALTER TABLE MoodRecord AUTO_INCREMENT = 1')
+  await prisma.$executeRawUnsafe('ALTER TABLE ChatSession AUTO_INCREMENT = 1')
+  await prisma.$executeRawUnsafe('ALTER TABLE ChatMessage AUTO_INCREMENT = 1')
+  console.log('  ✓ 清空所有表，重置自增 ID\n')
 
-  const admin = await prisma.user.create({
-    data: { username: 'admin', passwordHash: adminHash, nickname: '管理员', role: 'admin' },
-  })
-  const normalUser = await prisma.user.create({
-    data: { username: 'testuser', passwordHash: userHash, nickname: '小明', role: 'user' },
-  })
-  console.log(`  ✓ 创建用户: admin (id=${admin.id})  testuser (id=${normalUser.id})`)
+  // ==================== 用户（1 admin + 10 普通用户） ====================
+  const hash = await bcrypt.hash('123456', 10)
+  const adminHash = await bcrypt.hash('admin123', 10)
+
+  const userDefs = [
+    { username: 'admin',    passwordHash: adminHash, nickname: '管理员', role: 'admin' },
+    { username: 'xiaoming', passwordHash: hash,    nickname: '小明',   role: 'user' },
+    { username: 'ahua',     passwordHash: hash,      nickname: '阿花',   role: 'user' },
+    { username: 'daliu',    passwordHash: hash,      nickname: '大刘',   role: 'user' },
+    { username: 'xiaomei',  passwordHash: hash,      nickname: '小美',   role: 'user' },
+    { username: 'laozhang', passwordHash: hash,      nickname: '老张',   role: 'user' },
+    { username: 'jingjing', passwordHash: hash,      nickname: '静静',   role: 'user' },
+    { username: 'ajie',     passwordHash: hash,      nickname: '阿杰',   role: 'user' },
+    { username: 'xiaoqi',   passwordHash: hash,      nickname: '小七',   role: 'user' },
+    { username: 'muzi',     passwordHash: hash,      nickname: '木子',   role: 'user' },
+    { username: 'yuanyuan', passwordHash: hash,      nickname: '圆圆',   role: 'user' },
+  ]
+
+  const users: Array<{ id: number; nickname: string; role: string }> = []
+  for (const u of userDefs) {
+    const created = await prisma.user.create({ data: u })
+    users.push({ id: created.id, nickname: created.nickname!, role: created.role })
+  }
+  console.log(`  ✓ 创建 ${users.length} 个用户: ${users.map((u) => `${u.nickname}(${u.role})`).join(', ')}\n`)
+
+  const normalUsers = users.filter((u) => u.role === 'user')
+  const labels = Object.keys(SCORE_RANGE)
+
+  // ==================== 心情记录（每用户 5 条，共 50 条） ====================
+  const moodRecords: Array<{
+    userId: number
+    moodScore: number
+    moodLabel: string
+    content: string
+    moodTrigger: string
+    sleepDuration: number
+    pressureLevel: number
+    aiAnalysis: string
+    aiSuggestion: string
+    createdAt: Date
+  }> = []
+
+  // 每个标签维度计数，确保内容和触发因素分散
+  const labelIdx: Record<string, number> = {}
+  for (const l of labels) labelIdx[l] = 0
+  const userLabelIdx = normalUsers.map(() => ({ ...labelIdx }))
+
+  for (let ui = 0; ui < normalUsers.length; ui++) {
+    const userId = normalUsers[ui].id
+    // 每个用户 5 条，标签覆盖
+    for (let i = 0; i < 5; i++) {
+      const label = labels[(ui * 5 + i) % labels.length]
+      const [min, max] = SCORE_RANGE[label]
+      const score = Math.floor(Math.random() * (max - min + 1)) + min
+      const { sleepDuration, pressureLevel } = sleepPressure(score)
+
+      const contents = MOOD_CONTENTS[label]
+      const triggers = MOOD_TRIGGERS[label]
+      const ci = userLabelIdx[ui][label]++
+      const content = contents[ci % contents.length]
+      const trigger = triggers[ci % triggers.length]
+
+      const ai = AI_DATA[label]
+      const aiAnalysis = {
+        primaryEmotion: ai.analysis.primaryEmotion,
+        emotionIntensity: Math.floor(Math.random() * (ai.analysis.emotionIntensity[1] - ai.analysis.emotionIntensity[0] + 1)) + ai.analysis.emotionIntensity[0],
+        riskLevel: score <= 3 ? ai.analysis.riskLevel === '低风险' ? '中风险' : ai.analysis.riskLevel : ai.analysis.riskLevel,
+        emotionNature: ai.analysis.emotionNature,
+      }
+      const suggestion = ai.suggestions[ci % ai.suggestions.length]
+
+      // 时间：过去 7 天内均匀分布
+      const d = new Date()
+      d.setDate(d.getDate() - Math.floor(Math.random() * 7))
+      d.setHours(8 + Math.floor(Math.random() * 14), Math.floor(Math.random() * 60), 0, 0)
+
+      moodRecords.push({
+        userId,
+        moodScore: score,
+        moodLabel: label,
+        content,
+        moodTrigger: trigger,
+        sleepDuration,
+        pressureLevel,
+        aiAnalysis: JSON.stringify(aiAnalysis),
+        aiSuggestion: JSON.stringify({ riskDescription: suggestion.riskDescription, advice: suggestion.advice }),
+        createdAt: d,
+      })
+    }
+  }
+
+  await prisma.moodRecord.createMany({ data: moodRecords })
+  console.log(`  ✓ 创建 ${moodRecords.length} 条心情记录（${normalUsers.length} 个用户 × 5 条）\n`)
 
   // ==================== 知识文章 ====================
   const articles = [
     {
       title: '如何缓解日常焦虑情绪',
-      content: '<h2>认识焦虑</h2><p>焦虑是人类面对压力时的正常反应...</p>',
+      content: '<h2>认识焦虑</h2><p>焦虑是人类面对压力时的正常反应，但当它超出合理范围，就会影响正常生活。</p><h2>实用方法</h2><p>深呼吸、运动、书写疗愈都是经过科学验证的有效缓解方法。</p>',
       category: 'mental-health',
       author: '系统管理员',
       coverImage: 'https://picsum.photos/seed/anxiety-relief/400/240',
@@ -39,7 +131,7 @@ async function main() {
     },
     {
       title: '正念冥想的科学依据',
-      content: '<h2>什么是正念冥想</h2><p>正念是一种有意识地、不加评判地关注当下的心理训练方法。</p>',
+      content: '<h2>什么是正念冥想</h2><p>正念是一种有意识地、不加评判地关注当下的心理训练方法。</p><p>哈佛大学研究表明，每天10分钟正念练习就能显著改善心理健康。</p>',
       category: 'emotion-management',
       author: '系统管理员',
       coverImage: 'https://picsum.photos/seed/mindfulness-meditation/400/240',
@@ -50,7 +142,7 @@ async function main() {
     },
     {
       title: '建立健康人际关系的五个方法',
-      content: '<h2>健康关系的基础</h2><p>人际关系是心理健康的重要支柱。</p>',
+      content: '<h2>健康关系的基础</h2><p>人际关系是心理健康的重要支柱。研究显示，拥有稳定支持系统的人心理弹性更强。</p>',
       category: 'relationships',
       author: '系统管理员',
       coverImage: 'https://picsum.photos/seed/healthy-relationships/400/240',
@@ -61,7 +153,7 @@ async function main() {
     },
     {
       title: '应对职场压力的实用技巧',
-      content: '<h2>职场压力的来源</h2><p>职场压力是现代社会最常见的压力源之一。</p>',
+      content: '<h2>职场压力的来源</h2><p>职场压力是现代社会最常见的压力源之一。截止日期、人际关系、职业发展都可能成为压力源。</p>',
       category: 'stress-coping',
       author: '系统管理员',
       coverImage: 'https://picsum.photos/seed/workplace-stress/400/240',
@@ -72,7 +164,7 @@ async function main() {
     },
     {
       title: '睡眠质量与心理健康的关系',
-      content: '<h2>睡眠为何重要</h2><p>睡眠是大脑清理垃圾的时间。</p>',
+      content: '<h2>睡眠为何重要</h2><p>睡眠是大脑清理代谢废物的时间。长期睡眠不足会显著增加焦虑和抑郁的风险。</p>',
       category: 'mental-health',
       author: '系统管理员',
       coverImage: 'https://picsum.photos/seed/sleep-health/400/240',
@@ -83,23 +175,15 @@ async function main() {
     },
   ]
   await prisma.article.createMany({ data: articles })
-  console.log(`  ✓ 创建 ${articles.length} 篇知识文章`)
+  console.log(`  ✓ 创建 ${articles.length} 篇知识文章\n`)
 
-  // ==================== 心情记录 ====================
-  const moods = [
-    { userId: normalUser.id, moodScore: 7, moodLabel: '开心', content: '今天天气很好，去公园散了步，心情不错。', moodTrigger: '享受美好时光', sleepDuration: 8, pressureLevel: 20, aiAnalysis: JSON.stringify({ primaryEmotion: '积极愉悦', emotionIntensity: 70, riskLevel: '低风险', emotionNature: '正面情绪' }), aiSuggestion: JSON.stringify({ riskDescription: '当前情绪状态积极健康。', advice: '记录当下的积极体验，建立积极情绪库。' }) },
-    { userId: normalUser.id, moodScore: 4, moodLabel: '焦虑', content: '下周三有个重要的汇报，从早上就开始紧张。', moodTrigger: '工作汇报/考试', sleepDuration: 5.5, pressureLevel: 65, aiAnalysis: JSON.stringify({ primaryEmotion: '轻度焦虑', emotionIntensity: 45, riskLevel: '中风险', emotionNature: '负面情绪' }), aiSuggestion: JSON.stringify({ riskDescription: '检测到明显的焦虑信号。', advice: '尝试将担忧写下来，区分能控制和无法控制的事。' }) },
-    { userId: normalUser.id, moodScore: 6, moodLabel: '平静', content: '今天什么事都没发生，平平淡淡的一天。', moodTrigger: '日常规律生活', sleepDuration: 7, pressureLevel: 30, aiAnalysis: JSON.stringify({ primaryEmotion: '平静稳定', emotionIntensity: 55, riskLevel: '低风险', emotionNature: '中性情绪' }), aiSuggestion: JSON.stringify({ riskDescription: '情绪基线稳定。', advice: '保持规律的作息，平静不等于平淡。' }) },
-    { userId: normalUser.id, moodScore: 3, moodLabel: '疲惫', content: '连加了三天班，感觉身体被掏空了。', moodTrigger: '长期加班', sleepDuration: 4, pressureLevel: 80, aiAnalysis: JSON.stringify({ primaryEmotion: '倦怠疲惫', emotionIntensity: 35, riskLevel: '高风险', emotionNature: '负面情绪' }), aiSuggestion: JSON.stringify({ riskDescription: '检测到精力透支信号。', advice: '请优先保证睡眠质量，留出15分钟空白时间。' }) },
-    { userId: normalUser.id, moodScore: 8, moodLabel: '期待', content: '下个月打算去大理旅行，已经订好了机票和民宿！', moodTrigger: '即将到来的旅行', sleepDuration: 7.5, pressureLevel: 15, aiAnalysis: JSON.stringify({ primaryEmotion: '期待向往', emotionIntensity: 75, riskLevel: '低风险', emotionNature: '正面情绪' }), aiSuggestion: JSON.stringify({ riskDescription: '期待感驱动行为动力。', advice: '将大目标拆解为小步骤，在等待中保持参与感。' }) },
-  ]
-  await prisma.moodRecord.createMany({ data: moods })
-  console.log(`  ✓ 创建 ${moods.length} 条心情记录`)
+  // ==================== 聊天会话（2 个，分给不同用户） ====================
+  const xiaoming = normalUsers[0] // 小明
+  const ahua = normalUsers[1]      // 阿花
 
-  // ==================== 聊天会话 ====================
-  const session = await prisma.chatSession.create({
+  await prisma.chatSession.create({
     data: {
-      userId: normalUser.id,
+      userId: xiaoming.id,
       title: '最近工作压力特别大…',
       messages: {
         create: [
@@ -113,11 +197,29 @@ async function main() {
       },
     },
   })
-  console.log(`  ✓ 创建 1 个聊天会话 (${session.id})，含 6 条消息`)
 
-  console.log('\n🎉 种子数据填充完成！')
+  await prisma.chatSession.create({
+    data: {
+      userId: ahua.id,
+      title: '和男朋友分手了走不出来…',
+      messages: {
+        create: [
+          { sender: 'user', content: '和男朋友分手一个月了，还是每天都会想起他，做什么都没有动力。' },
+          { sender: 'assistant', content: '一个月的感情修复期其实还处于正常的哀伤过程中。分手不是小事，允许自己难过是很重要的一步。你愿意跟我聊聊这段关系里让你最怀念的是什么吗？' },
+          { sender: 'user', content: '我们在一起两年了，他是我在大学里为数不多的朋友，现在突然变成一个人了。' },
+          { sender: 'assistant', content: '失去伴侣的同时也失去了一个重要的社交依靠，这种双重失落确实很难承受。你最近有没有试着联系其他朋友，或者参加一些自己感兴趣的活动？' },
+          { sender: 'user', content: '没什么心情见人。昨天试着自己去看了场电影，结果看到一半就哭了。' },
+          { sender: 'assistant', content: '哭出来反而是好事——情绪需要出口。你能迈出走出家门的这一步已经很了不起了。在难过的时候，可以试着把想对前任说的话写在日记里，不需要发给对方，只是让自己说出来。' },
+        ],
+      },
+    },
+  })
+  console.log(`  ✓ 创建 2 个聊天会话（小明 + 阿花）\n`)
+
+  console.log('🎉 种子数据填充完成！\n')
   console.log('   管理员账号: admin / admin123')
-  console.log('   普通用户:   testuser / 123456')
+  console.log('   普通用户密码均为: 123456')
+  console.log(`   用户列表: ${normalUsers.map((u) => u.nickname).join('、')}\n`)
 }
 
 main()

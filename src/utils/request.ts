@@ -154,7 +154,7 @@ http.interceptors.response.use(
     // 其他一切错误
     const msg = resolveHttpErrorMessage(error)
     ElMessage.error(msg)
-    return Promise.reject(error)
+    return Promise.reject(new BusinessError(status || -1, msg))
   },
 )
 

@@ -76,7 +76,8 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   └── migrations/                    # Prisma 迁移历史
 ├── scripts/
 │   ├── kill-port.js                   # predev 钩子，释放 3000 端口残留
-│   ├── seed-moods.ts                  # 单独填充心情记录（42 条，7 天均匀分布）
+│   ├── seed-data.ts                   # 心情记录种子共享数据（AI 分析/文案/触发因素）
+│   ├── seed-moods.ts                  # 单独填充心情记录（每用户 7 天均匀分布）
 │   └── seed-articles.ts               # 单独填充文章（+20 篇）
 ├── prisma.config.ts                   # Prisma 7 连接配置（datasource.url）
 ├── .env                               # DATABASE_URL + JWT_SECRET（不入 git）
@@ -145,7 +146,7 @@ src/
     │   ├── userMood.vue             # 心情记录（表单 + 历史列表）✅ 已完成
     │   ├── userArticles.vue         # 健康知识列表（卡片网格 + 搜索筛选）✅ 已完成
     │   ├── userArticleDetail.vue    # 文章详情（富文本渲染）✅ 已完成
-    │   └── userProfile.vue          # 个人中心（占位）⚠️ 占位
+    │   └── userProfile.vue          # 个人中心（头像上传 + 编辑昵称 + 修改密码）✅ 已完成
     └── login/
         ├── login.vue                # 登录页（完整：校验 + API + 角色分流跳转）
         └── register.vue             # 注册页（完整：表单校验 + API）
@@ -468,7 +469,11 @@ getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
 
 ### 个人中心 `userProfile.vue`
 
-占位页面，后续接入共享的账户设置组件。
+| 区域 | 内容 |
+|------|------|
+| 头像区 | 居中展示当前头像，hover 显示相机覆盖层，点击触发文件选择 → `uploadFile()` 上传 → `PUT /api/auth/profile` 保存 → `userStore.setUser()` 即时刷新导航栏 |
+| 基本资料 | 用户名（只读）、可编辑昵称 + 保存按钮、角色标签 |
+| 修改密码 | 旧密码 + 新密码 + 确认新密码，校验通过后 `PUT /api/auth/password`
 
 ### API `api/user.ts`
 
@@ -503,6 +508,8 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/auth/login` | POST | ✅ 真实后端（MySQL 查用户 + bcrypt + JWT） |
 | `/api/auth/register` | POST | ✅ 真实后端（MySQL 写入 + 用户名去重） |
 | `/api/auth/me` | GET | ✅ 真实后端（JWT 验证 + 返回用户信息） |
+| `/api/auth/profile` | PUT | ✅ 真实后端（需登录，更新昵称/头像） |
+| `/api/auth/password` | PUT | ✅ 真实后端（需登录，旧密码比对 + 更新） |
 | `/api/knowledge/articles` | GET | ✅ 真实后端（分页 + title/category/status 筛选） |
 | `/api/knowledge/articles` | POST | ✅ 真实后端（admin 鉴权 + JSON Schema 校验） |
 | `/api/knowledge/articles/suggestions` | GET | ✅ 真实后端（title 模糊联想，最多 10 条） |
@@ -567,7 +574,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 
 | 模块 | 内容 |
 |------|------|
-| 个人中心 | `userProfile.vue` 完整实现（编辑资料、修改密码） |
+| 个人中心 | `userProfile.vue` 完整实现（编辑资料、修改密码）✅ 已完成 |
 | AI 情绪分析 | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
 | 代码整理 | 提取 `formatTime` 到 `utils/format.ts` 共享 |
 | 代码整理 | 提取重复 CSS（table 样式、卡片）为公共样式 |

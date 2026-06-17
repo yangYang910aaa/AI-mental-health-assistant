@@ -278,7 +278,6 @@ const handleSubmit = async () => {
   try {
     await createMood({
       userId: userStore.userInfo?.id || 1001,
-      userName: userStore.displayName || '用户',
       moodScore: form.moodScore,
       moodLabel: form.moodLabel,
       moodTrigger: form.moodTrigger || undefined,

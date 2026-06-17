@@ -389,54 +389,6 @@ function mockApiPlugin(): Plugin {
         next()
       })
 
-      // ==================== 情绪日志 ====================
-      server.middlewares.use('/api/emotional/records', async (req, res, next) => {
-        // GET 列表 / 详情
-        if (req.method === 'GET') {
-          const url = new URL(req.url!, 'http://localhost')
-          // 路径末段是数字 → 详情
-          const id = Number(url.pathname.split('/').pop())
-          if (id) {
-            const record = mockEmotionals.find((e) => e.id === id)
-            if (!record) return json(res, { code: 404, message: '情绪记录不存在', data: null })
-            return json(res, { code: 200, message: 'ok', data: record })
-          }
-
-          const page = Number(url.searchParams.get('page')) || 1
-          const pageSize = Number(url.searchParams.get('pageSize')) || 10
-          const userId = url.searchParams.get('userId') || undefined
-          const moodScoreRange = url.searchParams.get('moodScoreRange') || undefined
-          const moodLabel = url.searchParams.get('moodLabel') || undefined
-
-          let filtered = mockEmotionals
-          if (userId) filtered = filtered.filter((e) => String(e.userId) === userId)
-          if (moodScoreRange) {
-            const [min, max] = moodScoreRange.split('-').map(Number)
-            filtered = filtered.filter((e) => e.moodScore >= min && e.moodScore <= max)
-          }
-          if (moodLabel) filtered = filtered.filter((e) => e.moodLabel === moodLabel)
-
-          const total = filtered.length
-          const start = (page - 1) * pageSize
-          // 列表只返回轻量字段，剔除详情专属数据
-          const list = filtered.slice(start, start + pageSize).map(({ sleepDuration, pressureLevel, moodTrigger, aiAnalysis, aiSuggestion, ...item }) => item)
-
-          return json(res, { code: 200, message: 'ok', data: { list, total } })
-        }
-
-        // DELETE 删除
-        if (req.method === 'DELETE') {
-          const id = Number(req.url!.split('/').pop())
-          const idx = mockEmotionals.findIndex((e) => e.id === id)
-          if (idx === -1) return json(res, { code: 404, message: '情绪记录不存在', data: null })
-
-          mockEmotionals.splice(idx, 1)
-          return json(res, { code: 200, message: '删除成功', data: null })
-        }
-
-        next()
-      })
-
       // ==================== 仪表盘 ====================
       server.middlewares.use('/api/dashboard', async (req, res, next) => {
         if (req.method !== 'GET') return next()

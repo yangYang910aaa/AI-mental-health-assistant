@@ -9,6 +9,7 @@ import { knowledgeRoutes } from './routes/knowledge.js'
 import { moodRoutes } from './routes/mood.js'
 import { homeRoutes } from './routes/home.js'
 import { fileRoutes } from './routes/file.js'
+import { emotionalRoutes } from './routes/emotional.js'
 
 const app = Fastify({ logger: false, bodyLimit: 50 * 1024 * 1024 }) // 50MB，支持 base64 图片
 
@@ -23,11 +24,12 @@ await app.register(fastifyStatic, {
 })
 
 // ==================== 注册路由 ====================
-await app.register(authRoutes)
-await app.register(knowledgeRoutes)
-await app.register(moodRoutes)
-await app.register(homeRoutes)
-await app.register(fileRoutes)
+await app.register(authRoutes)// 登录注册
+await app.register(knowledgeRoutes)// 知识文章
+await app.register(moodRoutes)// 用户心情记录
+await app.register(homeRoutes)// 用户首页
+await app.register(fileRoutes)// 文件上传
+await app.register(emotionalRoutes)//情绪日志
 
 // ==================== 全局错误处理 ====================
 app.setErrorHandler((error: { statusCode?: number; message?: string }, _request, reply) => {
