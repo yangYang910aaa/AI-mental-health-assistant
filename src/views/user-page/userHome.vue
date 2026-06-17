@@ -54,17 +54,19 @@
       </div>
 
       <!-- 本周平均情绪 -->
-      <div class="stat-card" @click="router.push({ name: ROUTE_NAMES.userMood })">
-        <div class="stat-icon" :style="weekAvgStyle.iconBg">
-          <el-icon :size="22"><TrendCharts /></el-icon>
+      <el-tooltip content="最近 7 天心情评分的平均值" placement="top">
+        <div class="stat-card" @click="router.push({ name: ROUTE_NAMES.userMood })">
+          <div class="stat-icon" :style="weekAvgStyle.iconBg">
+            <el-icon :size="22"><TrendCharts /></el-icon>
+          </div>
+          <div class="stat-body">
+            <span class="stat-value" :style="{ color: weekAvgStyle.color }">
+              {{ stats.weekAvgScore || '—' }}<small v-if="stats.weekAvgScore">/10</small>
+            </span>
+            <span class="stat-meta">{{ weekAvgStyle.label }}</span>
+          </div>
         </div>
-        <div class="stat-body">
-          <span class="stat-value" :style="{ color: weekAvgStyle.color }">
-            {{ stats.weekAvgScore || '—' }}<small v-if="stats.weekAvgScore">/10</small>
-          </span>
-          <span class="stat-meta">{{ weekAvgStyle.label }}</span>
-        </div>
-      </div>
+      </el-tooltip>
     </div>
 
     <!-- ==================== 情绪趋势 + 最近对话 ==================== -->

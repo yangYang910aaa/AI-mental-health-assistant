@@ -8,7 +8,7 @@
         <el-form :model="form" label-position="top" class="mood-form">
           <!-- 情绪评分 -->
           <el-form-item label="情绪评分" style="margin-bottom: 35px;">
-            <el-slider v-model="form.moodScore" :min="1" :max="10" show-input :marks="scoreMarks" />
+            <el-slider v-model="form.moodScore" :min="1" :max="10" show-input :marks="SCORE_MARKS" />
           </el-form-item>
 
           <!-- 情绪标签 -->
@@ -84,7 +84,7 @@
         <div v-if="moodList.length" class="mood-list">
           <div v-for="item in moodList" :key="item.id" class="mood-item" @click="openDetail(item.id)">
             <div class="mood-item-left">
-              <span class="mood-score-dot" :style="{ background: moodColor(item.moodScore) }">{{ item.moodScore }}</span>
+              <span class="mood-score-dot" :style="{ background: labelColor(item.moodLabel) }">{{ item.moodScore }}</span>
               <span class="mood-label-tag" :style="{ background: labelColor(item.moodLabel), color: '#fff' }">
                 {{ item.moodLabel }}
               </span>
@@ -131,8 +131,8 @@
             <div
               class="mood-score-ring"
               :style="{
-                '--ring-color': moodColor(detailRecord.moodScore),
-                '--ring-bg': moodColor(detailRecord.moodScore) + '22',
+                '--ring-color': labelColor(detailRecord.moodLabel),
+                '--ring-bg': labelColor(detailRecord.moodLabel) + '22',
               }"
             >
               <span class="score-number">{{ detailRecord.moodScore }}</span>
@@ -203,7 +203,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
-import { MOOD_LABELS, MOOD_LABEL_COLORS, moodScoreColor, SCORE_MARKS, TRIGGER_OPTIONS } from '@/api/emotional'
+import { MOOD_LABELS, MOOD_LABEL_COLORS, SCORE_MARKS, TRIGGER_OPTIONS } from '@/api/emotional'
 import { useUserStore } from '@/stores/user'
 import { createMood, getUserMoods, getUserMoodDetail, deleteMood, type UserMoodItem, type UserMoodDetail } from '@/api/user'
 
@@ -224,24 +224,15 @@ const submitting = ref(false)
 // 要删除的记录ID
 const deletingId = ref(0)
 
-// 情绪评分滑块标记
-const scoreMarks = SCORE_MARKS
-
-// 触发因素选项
-const triggerOptions = TRIGGER_OPTIONS
-
 // 触发因素自动补全：只返回匹配的已有选项，不显示原始输入文字
 const filterTriggers = (queryString: string, cb: (results: Array<{ value: string }>) => void) => {
   const q = queryString.trim().toLowerCase()
   cb(
     q
-      ? triggerOptions.filter((t) => t.toLowerCase().includes(q)).map((t) => ({ value: t }))
-      : triggerOptions.map((t) => ({ value: t })),
+      ? TRIGGER_OPTIONS.filter((t) => t.toLowerCase().includes(q)).map((t) => ({ value: t }))
+      : TRIGGER_OPTIONS.map((t) => ({ value: t })),
   )
 }
-
-// 情绪标签颜色映射
-const moodColor = moodScoreColor
 
 // 情绪标签颜色映射
 const labelColor = (label: string) => MOOD_LABEL_COLORS[label] || '#8b9e7e'
@@ -549,9 +540,6 @@ onMounted(() => loadHistory())
     justify-content: center;
   }
 }
-</style>
-
-<style scoped lang="scss">
 // ==================== 详情弹窗 ====================
 .dialog-header-text{
   font-size: 16px;

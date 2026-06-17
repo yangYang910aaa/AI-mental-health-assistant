@@ -2,13 +2,6 @@ import request from '@/utils/request'
 
 // ==================== 类型定义 ====================
 
-/** 今日心情摘要 */
-export interface TodayMood {
-  hasRecord: boolean
-  moodScore?: number
-  moodLabel?: string
-}
-
 /** 情绪趋势点 */
 export interface MoodTrendPoint {
   date: string

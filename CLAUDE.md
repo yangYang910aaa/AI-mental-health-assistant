@@ -506,7 +506,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/emotional/records/:id` | GET | ⚠️ mock |
 | `/api/emotional/records/:id` | DELETE | ⚠️ mock |
 | `/api/dashboard` | GET | ⚠️ mock |
-| `/api/user/home` | GET | ⚠️ mock（含自动补数据） |
+| `/api/user/home` | GET | ✅ 真实后端（聚合 MoodRecord + ChatSession） |
 | `/api/user/chat/sessions` | GET | ⚠️ mock |
 | `/api/user/chat/sessions/:id` | GET | ⚠️ mock |
 | `/api/user/chat/send` | POST | ⚠️ mock（随机回复，与用户输入无关） |
@@ -523,14 +523,14 @@ getUserMoods(userId, page, size)     // GET /user/mood
 
 ### 🔴 第一优先级：逐步迁移 mock → 真实后端
 
-当前 `/api/auth/*`、`/api/knowledge/*`、`/api/file/*`、`/api/user/mood/*` 已接入真实数据库。其余接口仍在 `vite.config.ts` mock 中。
+当前 `/api/auth/*`、`/api/knowledge/*`、`/api/file/*`、`/api/user/mood/*`、`/api/user/home` 已接入真实数据库。其余接口仍在 `vite.config.ts` mock 中。
 按顺序逐个迁移到 `server/src/routes/`：
 
 | 顺序 | 模块 | 涉及表 | 需新增路由文件 | 状态 |
 |------|------|--------|---------------|------|
 | 1 | 知识文章 CRUD | Article | `server/src/routes/knowledge.ts` | ✅ 已完成 |
 | 2 | 心情记录 | MoodRecord | `server/src/routes/mood.ts` | ✅ 已完成 |
-| 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` | ❌ |
+| 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` | ✅ 已完成 |
 | 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` | ❌ |
 | 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` | ❌ |
 | 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` | ❌ |
