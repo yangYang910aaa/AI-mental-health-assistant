@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db.js'
+import { formatDateTime } from '../utils/format.js'
 
 // ==================== 每日寄语 ====================
 
@@ -15,17 +16,11 @@ const DAILY_QUOTES = [
   '善待自己，就像你善待身边的人一样。',
 ]
 
-/** 格式化日期为 "YYYY-MM-DD HH:mm:ss" */
-const fmt = (d: Date) => {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
 // ==================== 路由注册 ====================
 
 export async function homeRoutes(app: FastifyInstance) {
 
-  // ========== 用户首页 /api/user/home —— 聚合数据（公开） ==========
+  // ========== 用户首页 /api/user/home —— 聚合数据  ==========
   app.get('/api/user/home', async (request, reply) => {
     const { userId: userIdStr } = request.query as { userId?: string }
 
@@ -60,7 +55,7 @@ export async function homeRoutes(app: FastifyInstance) {
     const recentMoods = Array.from({ length: 7 }, (_, i) => {
       const day = new Date(todayStart)
       day.setDate(todayStart.getDate() - (6 - i))
-      const dayStr = fmt(day).slice(0, 10) // "YYYY-MM-DD"
+      const dayStr = formatDateTime(day).slice(0, 10) // "YYYY-MM-DD"
       const record = weekMoods.find((m) => {
         const mDate = m.createdAt instanceof Date
           ? m.createdAt.toISOString().slice(0, 10)
@@ -101,7 +96,7 @@ export async function homeRoutes(app: FastifyInstance) {
         id: s.id,
         title,
         lastMessage: lastMsg?.content ?? '',
-        lastTime: lastMsg?.createdAt instanceof Date ? fmt(lastMsg.createdAt) : String(lastMsg?.createdAt ?? ''),
+        lastTime: lastMsg?.createdAt instanceof Date ? formatDateTime(lastMsg.createdAt) : String(lastMsg?.createdAt ?? ''),
         messageCount: s._count.messages,
       }
     })

@@ -1,13 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db.js'
-
-// ==================== 工具函数 ====================
-
-/** 格式化日期为 "YYYY-MM-DD HH:mm:ss" */
-const fmt = (d: Date) => {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+import { formatDateTime } from '../utils/format.js'
+import { parseId } from '../utils/validate.js'
 
 // ==================== JSON Schema 校验 ====================
 
@@ -96,7 +90,7 @@ export async function moodRoutes(app: FastifyInstance) {
 
     const list = records.map((r) => ({
       ...r,
-      createdAt: r.createdAt instanceof Date ? fmt(r.createdAt) : r.createdAt,
+      createdAt: r.createdAt instanceof Date ? formatDateTime(r.createdAt) : r.createdAt,
     }))
 
     return reply.send({ code: 200, message: 'ok', data: { list, total } })
@@ -106,14 +100,8 @@ export async function moodRoutes(app: FastifyInstance) {
   // 必须注册在 DELETE 之前，否则 :id 会被 DELETE 先匹配
   app.get('/api/user/mood/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const recordId = Number(id)
-
-    if (isNaN(recordId)) {
-      return reply.status(400).send({ code: 400, message: '记录ID格式错误', data: null })
-    }
-    if (!Number.isInteger(recordId) || recordId <= 0) {
-      return reply.status(400).send({ code: 400, message: '记录ID必须是正整数', data: null })
-    }
+    const recordId = parseId(id, '记录', reply)
+    if (recordId === null) return
 
     const record = await prisma.moodRecord.findUnique({ where: { id: recordId } })
     if (!record) {
@@ -123,7 +111,7 @@ export async function moodRoutes(app: FastifyInstance) {
     const data = {
       ...record,
       sleepDuration: record.sleepDuration instanceof Object ? Number(record.sleepDuration) : record.sleepDuration,
-      createdAt: record.createdAt instanceof Date ? fmt(record.createdAt) : record.createdAt,
+      createdAt: record.createdAt instanceof Date ? formatDateTime(record.createdAt) : record.createdAt,
     }
 
     return reply.send({ code: 200, message: 'ok', data })
@@ -132,14 +120,8 @@ export async function moodRoutes(app: FastifyInstance) {
   // ========== 删除心情记录 /api/user/mood/:id —— 删除 ==========
   app.delete('/api/user/mood/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const recordId = Number(id)
-
-    if (isNaN(recordId)) {
-      return reply.status(400).send({ code: 400, message: '记录ID格式错误', data: null })
-    }
-    if (!Number.isInteger(recordId) || recordId <= 0) {
-      return reply.status(400).send({ code: 400, message: '记录ID必须是正整数', data: null })
-    }
+    const recordId = parseId(id, '记录', reply)
+    if (recordId === null) return
 
     const existing = await prisma.moodRecord.findUnique({ where: { id: recordId } })
     if (!existing) {

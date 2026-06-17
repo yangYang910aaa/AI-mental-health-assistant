@@ -1,17 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
-
-// ==================== 工具函数 ====================
-
-/** 格式化日期为 "YYYY-MM-DD HH:mm:ss" */
-const fmt = (d: Date) => {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+import { formatDateTime } from '../utils/format.js'
+import { parseId } from '../utils/validate.js'
 
 // 序列化文章：Date → 字符串
-const serialize = (a: any) => ({ ...a, createdAt: a.createdAt instanceof Date ? fmt(a.createdAt) : a.createdAt })
+const serialize = (a: any) => ({ ...a, createdAt: a.createdAt instanceof Date ? formatDateTime(a.createdAt) : a.createdAt })
 
 // ==================== JSON Schema 校验 ====================
 
@@ -99,16 +93,8 @@ export async function knowledgeRoutes(app: FastifyInstance) {
   // ========== 文章详情 /api/knowledge/articles/:id —— 详情（公开） ==========
   app.get('/api/knowledge/articles/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const articleId = Number(id)
-
-    // 校验文章ID格式,确保是数字类型
-    if (isNaN(articleId)) {
-      return reply.status(400).send({ code: 400, message: '文章ID格式错误', data: null })
-    }
-    // 校验验文章ID是否为正整数
-    if(!Number.isInteger(articleId)||articleId<=0){
-      return reply.status(400).send({ code: 400, message: '文章ID必须是正整数', data: null })
-    }
+    const articleId = parseId(id, '文章', reply)
+    if (articleId === null) return
     const article = await prisma.article.findUnique({ where: { id: articleId } })
     if (!article) {
       return reply.status(404).send({ code: 404, message: '文章不存在', data: null })
@@ -165,16 +151,9 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     }
 
     const { id } = request.params as { id: string }
-    // 4.校验文章ID格式,确保是数字类型
-    const articleId = Number(id)
-    if (isNaN(articleId)) {
-      return reply.status(400).send({ code: 400, message: '文章ID格式错误', data: null })
-    }
-    // 校验文章ID是否为正整数
-    if(!Number.isInteger(articleId)||articleId<=0){
-      return reply.status(400).send({ code: 400, message: '文章ID必须是正整数', data: null })
-    }
-    // 5.查询文章是否存在
+    const articleId = parseId(id, '文章', reply)
+    if (articleId === null) return
+
     const existing = await prisma.article.findUnique({ where: { id: articleId } })
     if (!existing) {
       return reply.status(404).send({ code: 404, message: '文章不存在', data: null })
@@ -208,13 +187,9 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     }
 
     const { id } = request.params as { id: string }
-    const articleId = Number(id)
-    if (isNaN(articleId)) {
-      return reply.status(400).send({ code: 400, message: '文章ID格式错误', data: null })
-    }
-    if(!Number.isInteger(articleId)||articleId<=0){
-      return reply.status(400).send({ code: 400, message: '文章ID必须是正整数', data: null })
-    }
+    const articleId = parseId(id, '文章', reply)
+    if (articleId === null) return
+
     const existing = await prisma.article.findUnique({ where: { id: articleId } })
     if (!existing) {
       return reply.status(404).send({ code: 404, message: '文章不存在', data: null })
