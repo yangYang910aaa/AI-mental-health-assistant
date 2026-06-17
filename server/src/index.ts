@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { authRoutes } from './routes/auth.js'
 import { knowledgeRoutes } from './routes/knowledge.js'
+import { moodRoutes } from './routes/mood.js'
 import { fileRoutes } from './routes/file.js'
 
 const app = Fastify({ logger: false, bodyLimit: 50 * 1024 * 1024 }) // 50MB，支持 base64 图片
@@ -23,6 +24,7 @@ await app.register(fastifyStatic, {
 // ==================== 注册路由 ====================
 await app.register(authRoutes)
 await app.register(knowledgeRoutes)
+await app.register(moodRoutes)
 await app.register(fileRoutes)
 
 // ==================== 全局错误处理 ====================

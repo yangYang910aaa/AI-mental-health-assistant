@@ -491,11 +491,14 @@ getUserMoods(userId, page, size)     // GET /user/mood
 |------|------|------|
 | `/api/auth/login` | POST | ✅ 真实后端（MySQL 查用户 + bcrypt + JWT） |
 | `/api/auth/register` | POST | ✅ 真实后端（MySQL 写入 + 用户名去重） |
-| `/api/knowledge/articles` | GET | ⚠️ mock |
-| `/api/knowledge/articles` | POST | ⚠️ mock |
-| `/api/knowledge/articles/:id` | GET | ⚠️ mock |
-| `/api/knowledge/articles/:id` | PUT | ⚠️ mock |
-| `/api/knowledge/articles/:id` | DELETE | ⚠️ mock |
+| `/api/auth/me` | GET | ✅ 真实后端（JWT 验证 + 返回用户信息） |
+| `/api/knowledge/articles` | GET | ✅ 真实后端（分页 + title/category/status 筛选） |
+| `/api/knowledge/articles` | POST | ✅ 真实后端（admin 鉴权 + JSON Schema 校验） |
+| `/api/knowledge/articles/suggestions` | GET | ✅ 真实后端（title 模糊联想，最多 10 条） |
+| `/api/knowledge/articles/:id` | GET | ✅ 真实后端（ID 正整数校验） |
+| `/api/knowledge/articles/:id` | PUT | ✅ 真实后端（admin 鉴权 + 部分更新） |
+| `/api/knowledge/articles/:id` | DELETE | ✅ 真实后端（admin 鉴权 + ID 校验） |
+| `/api/file/upload` | POST | ✅ 真实后端（multipart + UUID 存储） |
 | `/api/consultations/records` | GET | ⚠️ mock |
 | `/api/consultations/records/:id` | GET | ⚠️ mock |
 | `/api/consultations/records/:id` | DELETE | ⚠️ mock |
@@ -503,13 +506,14 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/emotional/records/:id` | GET | ⚠️ mock |
 | `/api/emotional/records/:id` | DELETE | ⚠️ mock |
 | `/api/dashboard` | GET | ⚠️ mock |
-| `/api/file/upload` | POST | ⚠️ mock 返回随机图 |
 | `/api/user/home` | GET | ⚠️ mock（含自动补数据） |
 | `/api/user/chat/sessions` | GET | ⚠️ mock |
 | `/api/user/chat/sessions/:id` | GET | ⚠️ mock |
 | `/api/user/chat/send` | POST | ⚠️ mock（随机回复，与用户输入无关） |
-| `/api/user/mood` | GET/POST | ⚠️ mock |
-| `/api/user/mood/:id` | DELETE | ⚠️ mock |
+| `/api/user/mood` | POST | ✅ 真实后端（JSON Schema 校验 + 创建记录） |
+| `/api/user/mood` | GET | ✅ 真实后端（分页 + userId 筛选 + moodLabel 筛选） |
+| `/api/user/mood/:id` | GET | ✅ 真实后端（返回全量字段含睡眠/压力/触发因素） |
+| `/api/user/mood/:id` | DELETE | ✅ 真实后端（ID 正整数校验 + 存在性检查） |
 
 > ✅ = 真实后端  ⚠️ = 仍在 vite.config.ts mock 插件中
 
@@ -519,19 +523,19 @@ getUserMoods(userId, page, size)     // GET /user/mood
 
 ### 🔴 第一优先级：逐步迁移 mock → 真实后端
 
-当前只有 `/api/auth/*` 接入了真实数据库。其余接口仍在 `vite.config.ts` mock 中。
+当前 `/api/auth/*`、`/api/knowledge/*`、`/api/file/*`、`/api/user/mood/*` 已接入真实数据库。其余接口仍在 `vite.config.ts` mock 中。
 按顺序逐个迁移到 `server/src/routes/`：
 
-| 顺序 | 模块 | 涉及表 | 需新增路由文件 |
-|------|------|--------|---------------|
-| 1 | 知识文章 CRUD | Article | `server/src/routes/knowledge.ts` |
-| 2 | 心情记录 | MoodRecord | `server/src/routes/mood.ts` |
-| 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` |
-| 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` |
-| 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` |
-| 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` |
-| 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` |
-| 8 | 文件上传 | 文件存储 | `server/src/routes/file.ts` |
+| 顺序 | 模块 | 涉及表 | 需新增路由文件 | 状态 |
+|------|------|--------|---------------|------|
+| 1 | 知识文章 CRUD | Article | `server/src/routes/knowledge.ts` | ✅ 已完成 |
+| 2 | 心情记录 | MoodRecord | `server/src/routes/mood.ts` | ✅ 已完成 |
+| 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` | ❌ |
+| 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` | ❌ |
+| 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` | ❌ |
+| 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` | ❌ |
+| 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` | ❌ |
+| 8 | 文件上传 | 文件存储 | `server/src/routes/file.ts` | ✅ 已完成 |
 
 每迁移一个模块，就删除 `vite.config.ts` 中对应的 mock handler。
 全部迁移完成后，删除整个 mock 插件。

@@ -108,6 +108,14 @@ export interface UserMoodItem {
   createdAt: string
 }
 
+/** 心情记录详情（含完整字段） */
+export interface UserMoodDetail extends UserMoodItem {
+  userId: number
+  moodTrigger: string
+  sleepDuration: number
+  pressureLevel: number
+}
+
 /** 用户心情记录列表 */
 export interface UserMoodListResult {
   list: UserMoodItem[]
@@ -118,9 +126,13 @@ export interface UserMoodListResult {
 export const createMood = (params: CreateMoodParams) =>
   request.post<void>('/user/mood', params)
 
-/** 获取用户心情记录列表 */
-export const getUserMoods = (userId: number, page: number, pageSize: number) =>
-  request.get<UserMoodListResult>('/user/mood', { params: { userId, page, pageSize } })
+/** 获取用户心情记录列表，可按情绪标签筛选 */
+export const getUserMoods = (userId: number, page: number, pageSize: number, moodLabel?: string) =>
+  request.get<UserMoodListResult>('/user/mood', { params: { userId, page, pageSize, moodLabel } })
+
+/** 获取心情记录详情 */
+export const getUserMoodDetail = (id: number) =>
+  request.get<UserMoodDetail>('/user/mood/' + id)
 
 /** 删除心情记录 */
 export const deleteMood = (id: number) =>

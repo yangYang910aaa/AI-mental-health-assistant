@@ -10,6 +10,8 @@
     "start": "node dist/index.js",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed-moods": "tsx scripts/seed-moods.ts",
+    "db:seed-articles": "tsx scripts/seed-articles.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
