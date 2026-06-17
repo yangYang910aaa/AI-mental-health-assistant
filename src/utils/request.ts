@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
+import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
 
 // ==================== 类型定义 ====================
@@ -58,7 +58,7 @@ const handleUnauthorized = (message = '登录已过期，请重新登录'): Prom
  * HTTP 层面错误的统一处理
  * 根据状态码 / 错误类型返回不同的提示文案
  */
-const resolveHttpErrorMessage = (error: any): string => {
+const resolveHttpErrorMessage = (error: AxiosError<ApiResponse>): string => {
   // 网络层面的超时（axios 抛出的 ECONNABORTED）
   if (error?.code === 'ECONNABORTED') return '请求超时，请稍后重试'
 
@@ -141,7 +141,7 @@ http.interceptors.response.use(
 
     // 401 → 登录过期 / token 无效，清 token + 跳转
     // 但登录接口本身的 401（密码错误）不能跳，要显示错误消息
-    if (status === 401 && !error.config?.url?.includes('/auth/login')) {
+    if (status === 401 && !error.config?.url?.includes(LOGIN_PATH)) {
       return handleUnauthorized()
     }
 

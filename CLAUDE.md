@@ -60,13 +60,24 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   ├── index.ts                       # Fastify 入口，注册插件/路由，监听 :3000
 │   ├── db.ts                          # Prisma 7 客户端（mariadb 适配器 + dotenv）
 │   ├── routes/
-│   │   └── auth.ts                    # POST /api/auth/login + register（JSON Schema 校验）
-│   └── middleware/
-│       └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
+│   │   ├── auth.ts                    # POST /api/auth/login + register + GET /me
+│   │   ├── knowledge.ts               # 知识文章 CRUD + /suggestions 标题联想
+│   │   ├── mood.ts                    # 用户心情记录 CRUD（POST + GET 列表/详情 + DELETE）
+│   │   ├── home.ts                    # 用户首页聚合（情绪统计 + 趋势 + 最近对话）
+│   │   └── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
+│   ├── middleware/
+│   │   └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
+│   └── utils/
+│       ├── format.ts                  # formatDateTime() —— Date → "YYYY-MM-DD HH:mm:ss"
+│       └── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
 ├── prisma/
 │   ├── schema.prisma                  # 数据模型：User/MoodRecord/ChatSession/ChatMessage/Article
 │   ├── seed.ts                        # 种子：2 用户 + 5 文章 + 5 心情 + 1 会话(6 条消息)
 │   └── migrations/                    # Prisma 迁移历史
+├── scripts/
+│   ├── kill-port.js                   # predev 钩子，释放 3000 端口残留
+│   ├── seed-moods.ts                  # 单独填充心情记录（42 条，7 天均匀分布）
+│   └── seed-articles.ts               # 单独填充文章（+20 篇）
 ├── prisma.config.ts                   # Prisma 7 连接配置（datasource.url）
 ├── .env                               # DATABASE_URL + JWT_SECRET（不入 git）
 └── package.json                       # 独立依赖（fastify/prisma/bcryptjs/jsonwebtoken）
