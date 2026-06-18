@@ -37,7 +37,7 @@ const isCollapsed=computed(()=>adminStore.isCollapsed)
 
 // /backLayout 下的子路由
 const backRoute=router.options.routes.find(item=>item.name===ROUTE_NAMES.backLayout)
-const routes = backRoute?.children || []
+const routes = backRoute?.children?.filter(r => !r.meta?.hidden) || []
 
 // logo 路径
 const logoUrl = new URL('@/assets/logo.svg', import.meta.url).href

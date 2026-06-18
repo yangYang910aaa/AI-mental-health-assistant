@@ -5,6 +5,8 @@ declare module 'vue-router' {
     title?: string
     /** Element Plus 图标组件名 */
     icon?: string
+    /** 不在侧边栏显示（如个人中心） */
+    hidden?: boolean
   }
 }
 

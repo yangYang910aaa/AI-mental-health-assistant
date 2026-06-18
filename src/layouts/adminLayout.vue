@@ -21,6 +21,7 @@ import navBar from '@/components/admin-page/navBar.vue'
 <style lang="scss" scoped>
 .back-to-layout{
     height: 100vh;
+    background: #fff;
     .main-container{
       height: 100%;
       .el-header{
@@ -31,7 +32,6 @@ import navBar from '@/components/admin-page/navBar.vue'
       }
       .content-container{
         padding: 20px;
-        background: white;
         min-height: calc(100vh - 70px);
       }
     }

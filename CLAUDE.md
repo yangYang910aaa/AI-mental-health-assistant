@@ -1,6 +1,6 @@
 # mental-health — AI 心理健康助手
 
-Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），认证（登录/注册）已对接真实数据库，其余 API 仍由 vite.config.ts mock 接管，逐步迁移中。
+Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），核心 API 已逐步从 mock 迁至真实数据库，剩余聊天/咨询/仪表盘仍在迁移中。
 
 ---
 
@@ -60,9 +60,10 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   ├── index.ts                       # Fastify 入口，注册插件/路由，监听 :3000
 │   ├── db.ts                          # Prisma 7 客户端（mariadb 适配器 + dotenv）
 │   ├── routes/
-│   │   ├── auth.ts                    # POST /api/auth/login + register + GET /me
+│   │   ├── auth.ts                    # 登录/注册/验证 + PUT /api/auth/profile + password
 │   │   ├── knowledge.ts               # 知识文章 CRUD + /suggestions 标题联想
 │   │   ├── mood.ts                    # 用户心情记录 CRUD（POST + GET 列表/详情 + DELETE）
+│   │   ├── emotional.ts               # 管理端情绪日志（列表/详情/删除，需 admin）
 │   │   ├── home.ts                    # 用户首页聚合（情绪统计 + 趋势 + 最近对话）
 │   │   └── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
 │   ├── middleware/
@@ -72,7 +73,7 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │       └── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
 ├── prisma/
 │   ├── schema.prisma                  # 数据模型：User/MoodRecord/ChatSession/ChatMessage/Article
-│   ├── seed.ts                        # 种子：2 用户 + 5 文章 + 5 心情 + 1 会话(6 条消息)
+│   ├── seed.ts                        # 种子：11 用户 + 15 文章 + 50 心情 + 2 会话
 │   └── migrations/                    # Prisma 迁移历史
 ├── scripts/
 │   ├── kill-port.js                   # predev 钩子，释放 3000 端口残留
@@ -382,9 +383,9 @@ deleteEmotional(id)               // DELETE /emotional/records/:id
 - **情绪评分与标签语义关联**：开心/期待→正面高分(7-10)，平静→中性中分(5-7)，焦虑/疲惫/悲伤/愤怒/恐惧→负面低分(1-4)
 - **AI 分析字段内聚**：`aiAnalysis` 一个对象包含 4 个子项（主要情绪、情绪强度、风险等级、情绪性质），`aiSuggestion` 拆为风险描述 + 专业建议
 
-### Mock
+### 后端实现
 
-一个 handler 处理 `/api/emotional/records`，按 method + URL 末段分发 GET 列表/GET 详情/DELETE。列表响应剥离 `sleepDuration/pressureLevel/moodTrigger/aiAnalysis/aiSuggestion` 五个重字段。58 条数据覆盖 8 种情绪标签，每种含对应文案。
+已迁至真实后端 `server/src/routes/emotional.ts`，基于 MoodRecord + User JOIN 查询，admin 鉴权。列表返回轻量字段，详情返回全量含 AI 分析。
 
 ---
 
@@ -484,7 +485,7 @@ HomeStats { todayMoodScore, todayMoodLabel, weekMoodCount, weekChatCount, weekAv
 ChatSession { id, title, lastMessage, lastTime, messageCount }
 ChatMessage { id, sender, content, time }
 SendMessageResult { userMessage, aiReply }
-CreateMoodParams { userId, userName, moodScore, moodLabel, content, ... }
+CreateMoodParams { userId, moodScore, moodLabel, content, ... }
 
 // 接口
 getUserHome(userId)                   // GET /user/home
@@ -520,9 +521,9 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/consultations/records` | GET | ⚠️ mock |
 | `/api/consultations/records/:id` | GET | ⚠️ mock |
 | `/api/consultations/records/:id` | DELETE | ⚠️ mock |
-| `/api/emotional/records` | GET | ⚠️ mock |
-| `/api/emotional/records/:id` | GET | ⚠️ mock |
-| `/api/emotional/records/:id` | DELETE | ⚠️ mock |
+| `/api/emotional/records` | GET | ✅ 真实后端（admin 鉴权，MoodRecord + User JOIN） |
+| `/api/emotional/records/:id` | GET | ✅ 真实后端（admin 鉴权，全量字段含 AI 分析） |
+| `/api/emotional/records/:id` | DELETE | ✅ 真实后端（admin 鉴权，ID 正整数校验） |
 | `/api/dashboard` | GET | ⚠️ mock |
 | `/api/user/home` | GET | ✅ 真实后端（聚合 MoodRecord + ChatSession） |
 | `/api/user/chat/sessions` | GET | ⚠️ mock |
@@ -551,7 +552,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` | ✅ 已完成 |
 | 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` | ❌ |
 | 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` | ❌ |
-| 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` | ❌ |
+| 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` | ✅ 已完成 |
 | 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` | ❌ |
 | 8 | 文件上传 | 文件存储 | `server/src/routes/file.ts` | ✅ 已完成 |
 
@@ -575,6 +576,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | 模块 | 内容 |
 |------|------|
 | 个人中心 | `userProfile.vue` 完整实现（编辑资料、修改密码）✅ 已完成 |
+| 管理端个人中心 | admin 布局顶栏的头像下拉 → 个人中心页，复用用户端 profile 组件或独立实现 |
 | AI 情绪分析 | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
 | 代码整理 | 提取 `formatTime` 到 `utils/format.ts` 共享 |
 | 代码整理 | 提取重复 CSS（table 样式、卡片）为公共样式 |
@@ -588,6 +590,11 @@ getUserMoods(userId, page, size)     // GET /user/mood
 - **`@types/express` 版本冲突**：Express → Fastify 后彻底消除，零 `@types/*` 依赖
 - **心情记录删除**：`userMood.vue` 新增删除按钮，末页边界处理
 - **mock 文章数据缺失**：补全 `coverImage` / `content` / `tags` 三个字段
+- **种子数据扩充**：用户 2→11 人（admin + 10 普通用户），心情记录 5→50 条含完整 AI 分析，文章 5→15 篇，用户名规则统一（拼音 → 中文昵称）
+- **种子数据重构**：提取 `scripts/seed-data.ts` 共享数据，消除 `seed.ts` 与 `seed-moods.ts` 间 ~200 行重复
+- **个人中心实现**：`userProfile.vue` 头像上传 + 昵称编辑 + 密码修改，后端 `PUT /api/auth/profile` + `PUT /api/auth/password`
+- **request.ts 双弹消息**：非 401/403 错误分支统一 reject `BusinessError`，组件 catch 检查 `instanceof` 避免重复 ElMessage
+- **mood.ts 冗余字段**：移除 schema 和 handler 中写传不存的 `userName` 字段
 
 ---
 

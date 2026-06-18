@@ -9,6 +9,7 @@ export const ROUTE_NAMES = {
   knowledge: 'knowledge',
   consultations: 'consultations',
   emotional: 'emotional',
+  adminProfile: 'adminProfile',
   // 用户端路由
   userLayout: 'userLayout',
   userHome: 'userHome',
@@ -60,6 +61,12 @@ const router = createRouter({
           name: ROUTE_NAMES.emotional,
           component: () => import('@/views/admin-page/emotional.vue'),
           meta: { title: '情绪日志', icon: 'Calendar' },
+        },
+        {
+          path: 'profile',
+          name: ROUTE_NAMES.adminProfile,
+          component: () => import('@/views/admin-page/adminProfile.vue'),
+          meta: { title: '个人中心', hidden: true },
         },
       ],
     },

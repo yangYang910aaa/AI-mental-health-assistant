@@ -29,9 +29,11 @@ import { ArrowDown, Expand } from '@element-plus/icons-vue'
 import { useAdminStore } from '@/stores/admin'
 import { useUserStore } from '@/stores/user'
 import { logout } from '@/api/auth'
-import {useRoute} from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ROUTE_NAMES } from '@/router'
 
-const route=useRoute()
+const route = useRoute()
+const router = useRouter()
 
 const adminStore = useAdminStore()
 const userStore = useUserStore()
@@ -53,7 +55,7 @@ const handleCommand = (command: string) => {
     logout()
   }
   if (command === 'profile') {
-    // TODO: 跳转个人中心页
+    router.push({ name: ROUTE_NAMES.adminProfile })
   }
 }
 </script>
