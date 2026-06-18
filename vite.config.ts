@@ -350,44 +350,7 @@ function mockApiPlugin(): Plugin {
     configureServer(server) {
       // auth 登录/注册 → 已由真实后端处理，mock 不再拦截
       // knowledge 文章 CRUD → 已由真实后端处理（server/src/routes/knowledge.ts），mock 不再拦截
-
-      // ==================== 咨询记录 ====================
-      server.middlewares.use('/api/consultations/records', async (req, res, next) => {
-        // GET 列表 / 详情
-        if (req.method === 'GET') {
-          const url = new URL(req.url!, 'http://localhost')
-          // 路径末段是数字 → 详情
-          const id = Number(url.pathname.split('/').pop())
-          if (id) {
-            const record = mockConsultations.find((c) => c.id === id)
-            if (!record) return json(res, { code: 404, message: '咨询记录不存在', data: null })
-            const messages = generateMockMessages(id, record.messageCount, record.firstMessage)
-            const lastMsg = messages[messages.length - 1]
-            return json(res, { code: 200, message: 'ok', data: { ...record, messages, messageCount: messages.length, lastMessageTime: lastMsg.time } })
-          }
-
-          const page = Number(url.searchParams.get('page')) || 1
-          const pageSize = Number(url.searchParams.get('pageSize')) || 10
-
-          const total = mockConsultations.length
-          const start = (page - 1) * pageSize
-          const list = mockConsultations.slice(start, start + pageSize)
-
-          return json(res, { code: 200, message: 'ok', data: { list, total } })
-        }
-
-        // DELETE 删除
-        if (req.method === 'DELETE') {
-          const id = Number(req.url!.split('/').pop())
-          const idx = mockConsultations.findIndex((c) => c.id === id)
-          if (idx === -1) return json(res, { code: 404, message: '咨询记录不存在', data: null })
-
-          mockConsultations.splice(idx, 1)
-          return json(res, { code: 200, message: '删除成功', data: null })
-        }
-
-        next()
-      })
+      // consultations → 已由真实后端处理（server/src/routes/consultations.ts）
 
       // ==================== 仪表盘 ====================
       server.middlewares.use('/api/dashboard', async (req, res, next) => {

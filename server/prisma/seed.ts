@@ -287,44 +287,223 @@ async function main() {
   await prisma.article.createMany({ data: articles })
   console.log(`  ✓ 创建 ${articles.length} 篇知识文章\n`)
 
-  // ==================== 聊天会话（2 个，分给不同用户） ====================
-  const xiaoming = normalUsers[0] // 小明
-  const ahua = normalUsers[1]      // 阿花
+  // ==================== 聊天会话（10 个，每个用户 1 个） ====================
+  const [xiaoming, ahua, daliu, xiaomei, laozhang, jingjing, ajie, xiaoqi, muzi, yuanyuan] = normalUsers
 
-  await prisma.chatSession.create({
-    data: {
-      userId: xiaoming.id,
-      title: '最近工作压力特别大…',
-      messages: {
-        create: [
-          { sender: 'user', content: '最近工作压力特别大，经常失眠到凌晨三四点，白天又没精神，感觉整个人都快撑不住了…' },
-          { sender: 'assistant', content: '听起来你最近承受了很大的压力。失眠和工作压力往往是相互影响的——压力导致失眠，失眠又让第二天更难应对压力。能跟我说说，最近工作上具体发生了什么吗？' },
-          { sender: 'user', content: '项目马上要上线了，每天都加班到很晚，但还是觉得做不完。领导还一直在催。' },
-          { sender: 'assistant', content: '感觉到了，你处在一个高强度的时间节点上，外界的催促和自身的要求叠加在一起，确实很消耗人。你之前有过类似的经历吗？当时是怎么撑过来的？' },
-          { sender: 'user', content: '以前也有过，但没这么严重。这次感觉特别累，身体也有反应，胃疼、头疼。' },
-          { sender: 'assistant', content: '身体已经在给你发信号了——头痛、胃痛都是长期紧张积累的躯体化反应，它在告诉你需要停下来喘口气。你今天有没有哪怕10分钟是完全属于自己的、不被打扰的时间？' },
-        ],
-      },
-    },
-  })
+  /** 生成 pastDays 天前的某个时间（加上 offsetMinutes 偏移） */
+  const pastDate = (daysAgo: number, offsetMinutes = 0) => {
+    const d = new Date()
+    d.setDate(d.getDate() - daysAgo)
+    d.setHours(9 + Math.floor(Math.random() * 12), offsetMinutes % 60, 0, 0)
+    return d
+  }
 
-  await prisma.chatSession.create({
-    data: {
-      userId: ahua.id,
-      title: '和男朋友分手了走不出来…',
-      messages: {
-        create: [
-          { sender: 'user', content: '和男朋友分手一个月了，还是每天都会想起他，做什么都没有动力。' },
-          { sender: 'assistant', content: '一个月的感情修复期其实还处于正常的哀伤过程中。分手不是小事，允许自己难过是很重要的一步。你愿意跟我聊聊这段关系里让你最怀念的是什么吗？' },
-          { sender: 'user', content: '我们在一起两年了，他是我在大学里为数不多的朋友，现在突然变成一个人了。' },
-          { sender: 'assistant', content: '失去伴侣的同时也失去了一个重要的社交依靠，这种双重失落确实很难承受。你最近有没有试着联系其他朋友，或者参加一些自己感兴趣的活动？' },
-          { sender: 'user', content: '没什么心情见人。昨天试着自己去看了场电影，结果看到一半就哭了。' },
-          { sender: 'assistant', content: '哭出来反而是好事——情绪需要出口。你能迈出走出家门的这一步已经很了不起了。在难过的时候，可以试着把想对前任说的话写在日记里，不需要发给对方，只是让自己说出来。' },
-        ],
+  /** 为一条消息生成相对于会话开始时间的时间戳 */
+  const msgAt = (sessionStart: Date, order: number, gapMin = 3) =>
+    new Date(sessionStart.getTime() + order * gapMin * 60_000)
+
+  // --- 小明：6 条，3 天前 ---
+  {
+    const t = pastDate(3)
+    await prisma.chatSession.create({
+      data: {
+        userId: xiaoming.id,
+        title: '最近工作压力特别大…',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '最近工作压力特别大，经常失眠到凌晨三四点，白天又没精神，感觉整个人都快撑不住了…', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '听起来你最近承受了很大的压力。失眠和工作压力往往是相互影响的——压力导致失眠，失眠又让第二天更难应对压力。能跟我说说，最近工作上具体发生了什么吗？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '项目马上要上线了，每天都加班到很晚，但还是觉得做不完。领导还一直在催。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '感觉到了，你处在一个高强度的时间节点上，外界的催促和自身的要求叠加在一起，确实很消耗人。你之前有过类似的经历吗？当时是怎么撑过来的？', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '以前也有过，但没这么严重。这次感觉特别累，身体也有反应，胃疼、头疼。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '身体已经在给你发信号了——头痛、胃痛都是长期紧张积累的躯体化反应，它在告诉你需要停下来喘口气。你今天有没有哪怕10分钟是完全属于自己的、不被打扰的时间？', createdAt: msgAt(t, 5) },
+        ]},
       },
-    },
-  })
-  console.log(`  ✓ 创建 2 个聊天会话（小明 + 阿花）\n`)
+    })
+  }
+
+  // --- 阿花：8 条，9 天前 ---
+  {
+    const t = pastDate(9)
+    await prisma.chatSession.create({
+      data: {
+        userId: ahua.id,
+        title: '和男朋友分手了走不出来…',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '和男朋友分手一个月了，还是每天都会想起他，做什么都没有动力。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '一个月的感情修复期其实还处于正常的哀伤过程中。分手不是小事，允许自己难过是很重要的一步。你愿意跟我聊聊这段关系里让你最怀念的是什么吗？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '我们在一起两年了，他是我在大学里为数不多的朋友，现在突然变成一个人了。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '失去伴侣的同时也失去了一个重要的社交依靠，这种双重失落确实很难承受。你最近有没有试着联系其他朋友，或者参加一些自己感兴趣的活动？', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '没什么心情见人。昨天试着自己去看了场电影，结果看到一半就哭了。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '哭出来反而是好事——情绪需要出口。你能迈出走出家门的这一步已经很了不起了。在难过的时候，可以试着把想对前任说的话写在日记里，不需要发给对方，只是让自己说出来。', createdAt: msgAt(t, 5) },
+          { sender: 'user', content: '最近试着写了几天日记，好像确实好一点了。但有时候还是会突然很难过。', createdAt: msgAt(t, 6) },
+          { sender: 'assistant', content: '情绪的恢复本来就不是一条直线，会有反复是正常的。重要的是你已经开始了自我疗愈的脚步——写日记、尝试出门、愿意开口倾诉，这些都是了不起的进步。给自己多一些时间和耐心。', createdAt: msgAt(t, 7) },
+        ]},
+      },
+    })
+  }
+
+  // --- 大刘：5 条，1 天前 ---
+  {
+    const t = pastDate(1)
+    await prisma.chatSession.create({
+      data: {
+        userId: daliu.id,
+        title: '房贷车贷压得我喘不过气…',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '每个月工资一到账，还完房贷车贷就剩不下多少了，还要养两个孩子，真的压力好大。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '经济压力确实是很多家庭的现实困境，你不是一个人在面对这个。能跟我说说，除了经济方面，你目前最担心的是什么？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '就怕万一哪天失业了，整个家就垮了。每天晚上想到这个就睡不着。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '这种对未来的不确定感确实很消耗人。你现在的身体状况怎么样？睡眠不好的时候会怎么应对？', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '没什么办法，就是硬撑着。有时候会喝点酒帮助入睡，但第二天反而更累。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '酒精虽然能让人较快入睡，但会破坏深度睡眠质量，反而加重疲惫。今晚试试睡前用热水泡脚15分钟，同时做几个深呼吸——这是零成本的放松方式。你愿意试试吗？', createdAt: msgAt(t, 5) },
+        ]},
+      },
+    })
+  }
+
+  // --- 小美：7 条，7 天前 ---
+  {
+    const t = pastDate(7)
+    await prisma.chatSession.create({
+      data: {
+        userId: xiaomei.id,
+        title: '每次聚会都很紧张，我该怎么办？',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '公司下周要团建，我已经焦虑好几天了。每次这种集体活动我都特别害怕，不知道该说什么。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '社交焦虑其实比很多人想象的要普遍得多。你能具体说说是什么样的感受吗？是担心被人评判，还是不知道如何开启话题？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '都有吧。总觉得自己说的话没意思，别人会觉得我很无聊。所以干脆就不说了。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '我理解这种感受。其实大多数人在社交场合都更关注自己，并没有那么多精力去评判他人。你可以试着从一个简单的问题开始——比如问问对方的周末安排，或者对某个话题的看法。能说说你最擅长的是什么吗？从自己擅长的领域聊起会自然很多。', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '我喜欢烘焙，但总觉得这种爱好说出来有点不好意思。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '烘焙是一个很棒的爱好！很多人其实很羡慕会做甜点的人。下次可以试着说"周末做了巧克力曲奇"——这种话题往往能瞬间拉近距离。', createdAt: msgAt(t, 5) },
+          { sender: 'user', content: '团建回来感觉还不错，我用了你说的办法，跟几个同事聊了烘焙，她们都很感兴趣。谢谢你！', createdAt: msgAt(t, 6) },
+        ]},
+      },
+    })
+  }
+
+  // --- 老张：6 条，14 天前 ---
+  {
+    const t = pastDate(14)
+    await prisma.chatSession.create({
+      data: {
+        userId: laozhang.id,
+        title: '退休之后不知道每天该干嘛…',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '上个月刚退休，突然不用上班了，反而觉得空落落的。以前总盼着退休，真退下来又不知道该干什么。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '退休是人生的一个重大转折，从每天有明确任务到突然自由支配全部时间，这种转变需要适应。你之前在单位主要负责什么工作呢？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '做了三十年的工程师，管着十几号人。现在同事们偶尔还会打电话问我技术问题，但越来越少联系了。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '三十年的技术积累是非常宝贵的财富。你有没有想过把这些经验用另一种方式分享出去——比如在社区里帮邻居修修电器，或者给年轻人做一些义务的技术辅导？', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '这个主意不错。其实小区里确实有些老人手机不会用，我以前教过他们几次。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '那就从这个开始！尝试每周固定一个时间去社区活动室坐坐，帮助别人也是重新连接社会、找到价值感的好方式。你过去三十年积累的经验不会"过期"。', createdAt: msgAt(t, 5) },
+          { sender: 'user', content: '现在已经每周去社区活动室帮忙了，还认识了几个新朋友。谢谢你给的建议！', createdAt: msgAt(t, 6) },
+        ]},
+      },
+    })
+  }
+
+  // --- 静静：4 条，0 天前（今天） ---
+  {
+    const t = pastDate(0)
+    await prisma.chatSession.create({
+      data: {
+        userId: jingjing.id,
+        title: '孩子成绩下滑，我是不是做错了什么？',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '儿子这学期成绩从班级前十掉到了二十几名，老师说他上课走神。我是不是工作太忙忽略了他？', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '先别急着自责。成绩波动在孩子成长过程中是很正常的，不见得是你的责任。你注意到了老师的反馈并且很在乎，这说明你是一个关心孩子的妈妈。孩子最近有什么变化吗？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '他最近确实不太爱说话，放学就把自己关在房间里。问他学校的事就说"没事"。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '这个年龄段的孩子开始需要更多的个人空间，沉默不一定代表有问题。你可以试试不直接问"学校怎么样"，而是在吃饭时聊聊自己一天的趣事，创造轻松的对话氛围。最近一次你跟孩子真正开心地在一起是什么时候？', createdAt: msgAt(t, 3) },
+        ]},
+      },
+    })
+  }
+
+  // --- 阿杰：5 条，2 天前 ---
+  {
+    const t = pastDate(2)
+    await prisma.chatSession.create({
+      data: {
+        userId: ajie.id,
+        title: '上班如上坟，想辞职又不敢',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '每天早上起床都不想上班，工作内容重复枯燥，感觉自己在浪费生命。但辞职又不知道能干什么。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '这种"上班如上坟"的感觉其实是职业倦怠的典型信号。你在现在这个岗位做了多久了？还记得当初选择这份工作时最吸引你的是什么吗？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '快五年了。当初觉得大公司稳定，福利好。但做久了发现就是个大螺丝钉。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '五年的时间确实足够让人对重复的工作失去新鲜感。你有没有考虑过在公司内部横向调动，或者利用业余时间培养一个新的职业技能？', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '想过学编程，但每天下班累得像条狗，根本打不起精神去学。', createdAt: msgAt(t, 4) },
+        ]},
+      },
+    })
+  }
+
+  // --- 小七：7 条，5 天前 ---
+  {
+    const t = pastDate(5)
+    await prisma.chatSession.create({
+      data: {
+        userId: xiaoqi.id,
+        title: '半年后考研，一想就心慌到书都看不进',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '室友都在找工作了，只有我还在准备考研。每次翻开书就觉得心慌，感觉自己肯定考不上。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '考研确实是一段孤立感很强的旅程，再加上看到身边的人陆续确定出路，焦虑感很容易被放大。你的复习计划是多久前开始的？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '寒假回来就开始了，但效率很差。一天真正能集中精神的时间可能就两三个小时。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '两三个小时的高质量学习其实并不少——问题可能不在于"学了多久"，而在于"剩下的时间在焦虑"。试着把一天分成三段，每天保持稳定的节奏比突击更管用。', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '上周末下午，我复习了专业课的一个章节，做习题全对的时候，信心一下子就上来了。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '这就是你的"信心证据"。每当你觉得自己考不上的时候，回忆那个下午的感觉——你已经在用行动证明自己可以。', createdAt: msgAt(t, 5) },
+          { sender: 'user', content: '昨天又和妈妈吵了一架，她说考研不如找工作。我好累。', createdAt: msgAt(t, 6) },
+        ]},
+      },
+    })
+  }
+
+  // --- 木子：8 条，11 天前 ---
+  {
+    const t = pastDate(11)
+    await prisma.chatSession.create({
+      data: {
+        userId: muzi.id,
+        title: '总觉得自己不够好，是不是不自信？',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '同事夸我方案做得好，我第一反应是"他只是客气吧"。我好像总在否定自己，这是不是一种病？', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '这种情况在心理学上称为"冒名顶替综合征"——无法内化自己的成就，总是把成功归于运气或别人的善意。这非常常见，尤其在自我要求比较高的人身上。你小时候得到表扬的时候，家人通常会怎么回应？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '我妈总说"不要骄傲"，即使考了第一名她只会说"下次不一定能保持"。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '这很可能就是根源之一——当小时候的成就没有得到足够的肯定，长大后我们很难相信自己是值得被认可的。你愿意做一个练习吗？每次有人夸奖你的时候，尝试只说"谢谢"，不加"但是"或"只是运气"。', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '听起来简单但感觉好难。我怕这样会显得自负。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '接受认可和自负是完全不同的两件事。自负是贬低别人抬高自己，而接受认可是承认自己的努力有价值。下次同事再夸你的时候，试着笑着说"谢谢，这个方案确实花了不少心思"。', createdAt: msgAt(t, 5) },
+          { sender: 'user', content: '今天试着跟朋友聊了这些，她说她也有过类似的感觉。原来不是我一个人这样。', createdAt: msgAt(t, 6) },
+          { sender: 'assistant', content: '是的，你绝对不是一个人。研究表明大约70%的人在一生中都经历过冒名顶替的感觉。知道这一点本身就是一种释然——不是你有问题，而是我们被教导得太苛责自己了。', createdAt: msgAt(t, 7) },
+        ]},
+      },
+    })
+  }
+
+  // --- 圆圆：4 条，15 天前 ---
+  {
+    const t = pastDate(15)
+    await prisma.chatSession.create({
+      data: {
+        userId: yuanyuan.id,
+        title: '每次压力大就暴饮暴食，吃完又后悔',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '最近项目紧张，每天都想吃甜的。一盒饼干一眨眼就没了，吃完又特别后悔，觉得自己好失败。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '压力状态下身体会本能地渴望高热量食物，这是远古时期留下的生存机制，不代表你意志力差。你能回忆一下，每次想吃东西之前，你通常是处在什么样的情绪状态里？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '通常是工作遇到困难或者被领导说了之后。吃东西的时候什么都不用想，感觉很放松。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '所以食物在那一刻起到的是"情绪暂缓"的作用——它帮你从压力中抽离片刻。试试"延迟10分钟"策略：想吃薯片的时候先给自己10分钟缓冲，喝一杯温水，过一会儿再决定。你可能会惊喜地发现，有一半的时候冲动会自然消退。', createdAt: msgAt(t, 3) },
+        ]},
+      },
+    })
+  }
+  console.log(`  ✓ 创建 10 个聊天会话（每个用户 1 个，4-8 条消息，0-15 天前）\n`)
 
   console.log('🎉 种子数据填充完成！\n')
   console.log('   管理员账号: admin / admin123')
