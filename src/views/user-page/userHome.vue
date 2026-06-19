@@ -157,8 +157,9 @@ const weekAvgStyle = computed(() => {
 // 情绪标签颜色映射：根据情绪标签返回对应颜色（默认 #8b9e7e）
 const labelColor = (label: string) => MOOD_LABEL_COLORS[label] || '#8b9e7e'
 
-// 格式化时间：xx 分钟前 或 xx 小时前 或 xxxx-xx-xx 
+// 格式化时间：xx 分钟前 或 xx 小时前 或 xxxx-xx-xx
 const formatTime = (time: string) => {
+  if (!time) return ''
   const d = new Date(time.replace(' ', 'T'))
   const now = new Date()
   const diff = now.getTime() - d.getTime()
@@ -216,7 +217,7 @@ const trendOption = computed(() => {
 // 加载用户首页数据
 const loadData = async () => {
   try {
-    const userId = userStore.userInfo?.id || 1001
+    const userId = userStore.userInfo?.id ?? 0
     homeData.value = await getUserHome(userId)
   } catch { 
     homeData.value = null

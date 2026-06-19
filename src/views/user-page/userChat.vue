@@ -175,7 +175,7 @@ const formatTime = (time: string) => {
 const loadSessions = async () => {
   loadingSessions.value = true
   try {
-    const userId = userStore.userInfo?.id || 1001
+    const userId = userStore.userInfo?.id ?? 0
     sessions.value = await getChatSessions(userId)
   } catch {
     sessions.value = []
@@ -226,7 +226,7 @@ const handleSend = async () => {
   scrollToBottom()
 
   try {
-    const userId = userStore.userInfo?.id || 1001
+    const userId = userStore.userInfo?.id ?? 0
     const result = await sendMessage(activeSessionId.value, text, userId)
 
     // 替换临时消息

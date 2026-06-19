@@ -252,7 +252,7 @@ const selectedLabel = ref('')
 // 加载历史记录
 const loadHistory = async (page = 1) => {
   try {
-    const userId = userStore.userInfo?.id || 1001
+    const userId = userStore.userInfo?.id ?? 0
     const result = await getUserMoods(userId, page, pageSize, selectedLabel.value || undefined)
     moodList.value = result.list
     total.value = result.total
@@ -277,7 +277,7 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     await createMood({
-      userId: userStore.userInfo?.id || 1001,
+      userId: userStore.userInfo?.id ?? 0,
       moodScore: form.moodScore,
       moodLabel: form.moodLabel,
       moodTrigger: form.moodTrigger || undefined,
@@ -309,7 +309,7 @@ const openDetail = async (id: number) => {
   try {
     detailRecord.value = await getUserMoodDetail(id)
   } catch {
-    detailVisible.value = false
+    // 保留弹窗，让用户可以重试；拦截器已提示错误
   } finally {
     detailLoading.value = false
   }

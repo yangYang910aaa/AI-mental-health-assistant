@@ -107,8 +107,16 @@ export async function moodRoutes(app: FastifyInstance) {
     }
 
     const data = {
-      ...record,
-      sleepDuration: record.sleepDuration instanceof Object ? Number(record.sleepDuration) : record.sleepDuration,
+      id: record.id,
+      userId: record.userId,
+      moodScore: record.moodScore,
+      moodLabel: record.moodLabel,
+      content: record.content || '',
+      moodTrigger: record.moodTrigger || '',
+      sleepDuration: typeof record.sleepDuration === 'object' && record.sleepDuration !== null ? Number(record.sleepDuration) : (record.sleepDuration ?? 0),
+      pressureLevel: record.pressureLevel ?? 0,
+      aiAnalysis: record.aiAnalysis ?? { primaryEmotion: '', emotionIntensity: 0, riskLevel: '', emotionNature: '' },
+      aiSuggestion: record.aiSuggestion ?? { riskDescription: '', advice: '' },
       createdAt: record.createdAt instanceof Date ? formatDateTime(record.createdAt) : record.createdAt,
     }
 

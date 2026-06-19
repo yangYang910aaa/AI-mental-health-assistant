@@ -68,7 +68,7 @@ import { fetchArticles, CATEGORIES, type Article } from '@/api/knowledge'
 import { ROUTE_NAMES } from '@/router'
 
 // ==================== 跳转 ====================
-const router = useRouter()
+const router = useRouter() 
 const goDetail = (id: number) => {
   router.push({ name: ROUTE_NAMES.userArticleDetail, params: { id } })
 }
@@ -96,6 +96,7 @@ const loadArticles = async (page = 1) => {
     total.value = result.total
   } catch {
     articles.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
