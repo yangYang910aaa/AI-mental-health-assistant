@@ -5,7 +5,7 @@
   -->
   <div class="login-card">
     <!-- ==================== 品牌区域 ==================== -->
-    <div class="back-home" @click="router.push({ name: ROUTE_NAMES.knowledge })">
+    <div class="back-home" @click="router.push({ name: ROUTE_NAMES.userArticles })">
         <el-icon><Back /></el-icon>
         <span>返回首页</span>
     </div>

@@ -95,7 +95,7 @@ export async function emotionalRoutes(app: FastifyInstance) {
       moodScore: record.moodScore,
       moodLabel: record.moodLabel,
       content: record.content || '',
-      sleepDuration: record.sleepDuration instanceof Object ? Number(record.sleepDuration) : (record.sleepDuration ?? 0),
+      sleepDuration: typeof record.sleepDuration === 'object' && record.sleepDuration !== null ? Number(record.sleepDuration) : (record.sleepDuration ?? 0),
       pressureLevel: record.pressureLevel ?? 0,
       moodTrigger: record.moodTrigger || '',
       aiAnalysis: record.aiAnalysis ?? { primaryEmotion: '', emotionIntensity: 0, riskLevel: '', emotionNature: '' },

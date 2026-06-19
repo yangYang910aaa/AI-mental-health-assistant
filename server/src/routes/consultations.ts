@@ -28,9 +28,11 @@ export async function consultationsRoutes(app: FastifyInstance) {
       prisma.chatSession.findMany({
         include: {
           user: { select: { nickname: true, username: true } },
+          _count: { select: { messages: true } },
           messages: {
-            orderBy: { createdAt: 'asc' },
-            select: { id: true, sender: true, content: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { createdAt: true },
           },
         },
         skip: (page - 1) * pageSize,
@@ -40,18 +42,30 @@ export async function consultationsRoutes(app: FastifyInstance) {
       prisma.chatSession.count(),
     ])
 
+    // 批量取首条用户消息（每个会话一条）
+    const sessionIds = sessions.map((s) => s.id)
+    const firstMsgs = sessionIds.length > 0
+      ? await prisma.chatMessage.findMany({
+          where: { sessionId: { in: sessionIds }, sender: 'user' },
+          orderBy: { createdAt: 'asc' },
+          distinct: ['sessionId'],
+          select: { sessionId: true, content: true },
+        })
+      : []
+
+    const firstMsgMap = new Map(firstMsgs.map((m) => [m.sessionId, m.content]))
+
     const list = sessions.map((s) => {
-      const firstUserMsg = s.messages.find((m) => m.sender === 'user')
-      const lastMsg = s.messages[s.messages.length - 1]
+      const lastMsg = s.messages[0]
 
       return {
         id: s.id,
         userId: s.userId,
         userNickName: s.user.nickname || s.user.username,
         aiName: '宁渡',
-        firstMessage: firstUserMsg?.content || '',
+        firstMessage: firstMsgMap.get(s.id) || '',
         lastMessageTime: lastMsg ? formatDateTime(lastMsg.createdAt) : '',
-        messageCount: s.messages.length,
+        messageCount: s._count.messages,
         startedAt: s.createdAt instanceof Date ? formatDateTime(s.createdAt) : s.createdAt,
       }
     })

@@ -97,8 +97,12 @@ const formItem = [
     // 自定义联想函数
     fetchSuggestions: async (queryString: string, cb: (results: TitleSuggestion[]) => void) => {
       if (!queryString || queryString.trim().length === 0) return cb([])
-      const result = await fetchTitleSuggestions(queryString.trim())
-      cb(result)
+      try {
+        const result = await fetchTitleSuggestions(queryString.trim())
+        cb(result)
+      } catch {
+        cb([])
+      }
     },
     onSelect: (item: TitleSuggestion) => {
       searchParams.title = item.title
@@ -172,6 +176,8 @@ const loadData = async () => {
     })
     tableData.value = result.list
     pagination.total = result.total
+  } catch {
+    // 拦截器已提示
   } finally {
     loading.value = false
   }

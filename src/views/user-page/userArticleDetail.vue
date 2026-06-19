@@ -38,6 +38,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Loading } from '@element-plus/icons-vue'
+import { ROUTE_NAMES } from '@/router'
 import { fetchArticleDetail, CATEGORIES, type Article } from '@/api/knowledge'
 
 // ==================== 路由 ====================
@@ -57,7 +58,11 @@ const categoryLabel = computed(() => {
 // ==================== 数据加载 ====================
 const loadArticle = async () => {
   const id = Number(route.params.id)
-  if (!id) return
+  if (!id) {
+    loading.value = false
+    router.replace({ name: ROUTE_NAMES.userArticles })
+    return
+  }
   loading.value = true
   try {
     article.value = await fetchArticleDetail(id)

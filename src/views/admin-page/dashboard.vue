@@ -118,33 +118,41 @@ const activityTrendData = ref<DashboardData['userActivityTrend']>([])
 
 // 首次加载
 const initLoad = async () => {
-  const result = await getDashboardData('30d')
-  kpiData.value = result
-  moodTrendData.value = result.moodTrend
-  consultationTrendData.value = result.consultationTrend
-  activityTrendData.value = result.userActivityTrend
+  try {
+    const result = await getDashboardData('30d')
+    kpiData.value = result
+    moodTrendData.value = result.moodTrend
+    consultationTrendData.value = result.consultationTrend
+    activityTrendData.value = result.userActivityTrend
+  } catch { /* 拦截器已提示 */ }
 }
 
 // 各趋势独立刷新
 const loadMoodTrend = async () => {
-  const result = await getDashboardData(moodRange.value)
-  moodTrendData.value = result.moodTrend
+  try {
+    const result = await getDashboardData(moodRange.value)
+    moodTrendData.value = result.moodTrend
+  } catch { /* 拦截器已提示 */ }
 }
 const loadConsultationTrend = async () => {
-  const result = await getDashboardData(consultationRange.value)
-  consultationTrendData.value = result.consultationTrend
+  try {
+    const result = await getDashboardData(consultationRange.value)
+    consultationTrendData.value = result.consultationTrend
+  } catch { /* 拦截器已提示 */ }
 }
 const loadActivityTrend = async () => {
-  const result = await getDashboardData(activityRange.value)
-  activityTrendData.value = result.userActivityTrend
+  try {
+    const result = await getDashboardData(activityRange.value)
+    activityTrendData.value = result.userActivityTrend
+  } catch { /* 拦截器已提示 */ }
 }
 
 // ==================== KPI 卡片配置 ====================
 const kpiCards = computed(() => {
   if (!kpiData.value) return []
   const d = kpiData.value
-  const activeRate = Math.round((d.activeUsers / d.totalUsers) * 100)
-  const riskRate = Math.round((d.highRiskCount / d.emotionalLogs.total) * 100)
+  const activeRate = d.totalUsers > 0 ? Math.round((d.activeUsers / d.totalUsers) * 100) : 0
+  const riskRate = d.emotionalLogs.total > 0 ? Math.round((d.highRiskCount / d.emotionalLogs.total) * 100) : 0
   return [
     { label: '总用户数',     value: d.totalUsers.toLocaleString(), suffix: '', sub: '累计注册用户',     subHi: false, icon: User,           color: '#626aef', alert: false, progress: null },
     { label: '活跃用户',     value: d.activeUsers,  suffix: '', sub: `活跃率 ${activeRate}%`, subHi: false, icon: UserFilled,     color: '#5dbd7a', alert: false, progress: activeRate, progressColor: '#5dbd7a' },

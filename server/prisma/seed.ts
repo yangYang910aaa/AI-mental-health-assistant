@@ -503,7 +503,103 @@ async function main() {
       },
     })
   }
-  console.log(`  ✓ 创建 10 个聊天会话（每个用户 1 个，4-8 条消息，0-15 天前）\n`)
+  // ==================== 追加会话（制造咨询趋势的数据起伏） ====================
+
+  // 第 1 天（大刘那天）追加 2 个 → 当天 3 个
+  for (const u of [xiaomei, ajie]) {
+    const t = pastDate(1, Math.random() * 120)
+    await prisma.chatSession.create({
+      data: {
+        userId: u.id,
+        title: u === xiaomei ? '又和同事闹别扭了' : '想跳槽但简历都石沉大海',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: u === xiaomei ? '今天开会又和同事意见不合，吵了两句，现在心里特别不舒服。' : '投了十几家公司都没回应，是不是我能力不行？', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: u === xiaomei ? '意见分歧在工作中很常见，不代表关系破裂。你愿意说说具体是什么事情吗？' : '求职本身就是一个充满不确定性的过程，沉默不代表拒绝。你最近一次面试中觉得自己表现得还不错的地方是什么？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: u === xiaomei ? '就是项目方案的方向问题，我觉得我准备的已经够充分了。' : '倒是有一个终面感觉还行，但过了一周也没消息。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: u === xiaomei ? '能充分准备已经很了不起了。每个人的视角不同，坚持自己认为对的事情也是一种职业素养。' : '跟进一下也无可厚非——发一封简短的感谢邮件，既表达持续的兴趣，也是一种主动把握的态度。', createdAt: msgAt(t, 3) },
+        ]},
+      },
+    })
+  }
+
+  // 第 3 天（小明那天）追加 2 个 → 当天 3 个
+  for (const u of [laozhang, xiaoqi]) {
+    const t = pastDate(3, Math.random() * 180)
+    await prisma.chatSession.create({
+      data: {
+        userId: u.id,
+        title: u === laozhang ? '膝盖疼医生让少走路，闷得慌' : '室友天天打游戏到半夜吵得睡不着',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: u === laozhang ? '膝盖又疼了，医生说关节退化，让我少走路多休息。可不动更难受啊。' : '室友每天晚上打游戏到一两点，键盘声特别大，我说了好几次也没用。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: u === laozhang ? '理解你的心情，活动受限对习惯了忙碌的人来说确实很难熬。医生有没有推荐过游泳或者上肢运动？' : '睡眠被影响确实很令人头疼。你们宿舍有固定的熄灯时间吗？或者其他舍友也有同样的困扰？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: u === laozhang ? '没有，就说吃药控制。但我觉得吃药也不是长久之计。' : '另一个室友也抱怨过，但他比较怂不敢说。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: u === laozhang ? '可以问问理疗科有没有适合关节退化的康复运动方案。有时候适当的肌肉锻炼反而能保护关节。' : '如果一个人说没效果，可以试试联合起来一起谈谈，不是指责，而是协商一个双方都能接受的安静时间。', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '好，我试试。', createdAt: msgAt(t, 4) },
+        ]},
+      },
+    })
+  }
+
+  // 第 5 天（小七天）追加 1 个 → 当天 2 个
+  {
+    const t = pastDate(5, 90)
+    await prisma.chatSession.create({
+      data: {
+        userId: muzi.id,
+        title: '三十岁了还单身，家里人天天催',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '过年回家又被催婚了，说三十岁不结婚就晚了。我自己其实没那么急，但他们一说我就烦。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '家人催婚的背后往往是关心，但这种关心有时候确实会变成压力。你自己对未来的伴侣关系有什么期待吗？', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '我其实挺享受现在的生活的，工作稳定，朋友也多。就是偶尔会觉得孤独。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '享受当下和偶尔感到孤独并不矛盾——这是人之常情。单身有单身的好，遇到对的人时自然会知道。你的生活节奏不按别人的时间表走，这本身就很勇敢。', createdAt: msgAt(t, 3) },
+        ]},
+      },
+    })
+  }
+
+  // 第 9 天（阿花那天）追加 1 个 → 当天 2 个
+  {
+    const t = pastDate(9, 45)
+    await prisma.chatSession.create({
+      data: {
+        userId: jingjing.id,
+        title: '老公总是加班不回家，我感觉被忽略了',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: '老公最近半年几乎每天都加班到十点以后才回来，周末也经常去公司。我知道他工作忙，但我真的好孤单。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: '这种被另一半长期忽略的感觉确实很消耗人。你有尝试过跟他坐下来好好聊聊你的感受吗？不是问他"你为什么又加班"，而是告诉他"我需要你多陪陪我"。', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: '说过一次，他说我不理解他，说他这么拼还不是为了这个家。我就不敢再说了。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: '他的回应听起来带着防御。也许可以换一个方式——不是在他疲惫回家时说，而是约一个周末的固定时间，两人坐下来"聊聊我们的关系"。焦点不在工作，而在你们之间的连接感。你最近一次真正感觉跟他亲近是什么时候？', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '上个月他生日，我在家做了顿饭，那天他九点就回来了，我们聊了很多以前的事。', createdAt: msgAt(t, 4) },
+          { sender: 'assistant', content: '那个晚上就是一个很好的证明——当有明确的机会停下来时，他是愿意连接的那一面会出来。可以试着每个月固定一个"约会日"，不需要多隆重，就是两个人的专属时间。', createdAt: msgAt(t, 5) },
+        ]},
+      },
+    })
+  }
+
+  // 今天（静静那天）追加 2 个 → 当天 3 个
+  for (const u of [daliu, yuanyuan]) {
+    const t = pastDate(0, Math.random() * 240)
+    await prisma.chatSession.create({
+      data: {
+        userId: u.id,
+        title: u === daliu ? '孩子青春期叛逆不知道该怎么办' : '年底绩效考评快到了特别焦虑',
+        createdAt: t,
+        messages: { create: [
+          { sender: 'user', content: u === daliu ? '儿子今年初二，最近完全不听我的话，我说什么都不对。以前挺乖的一个孩子。' : '下个月就要年终考核了，这半年项目一直不顺利，我真的很怕被裁。', createdAt: msgAt(t, 0) },
+          { sender: 'assistant', content: u === daliu ? '初二正是独立意识爆发的阶段，孩子的"反抗"其实是他在尝试成为一个独立的人。你能注意到这个变化本身就是很好的第一步。' : '年底考核的不确定性确实让人心神不宁。能不能回顾一下这半年里你觉得自己做得最好的几件事？先别想不好的，只列好的。', createdAt: msgAt(t, 1) },
+          { sender: 'user', content: u === daliu ? '可是他现在成绩下滑得厉害，老师也找过我好几次。我真的很担心。' : '我想想……整理了一份项目复盘文档，领导当时还夸了。但也就这个了。', createdAt: msgAt(t, 2) },
+          { sender: 'assistant', content: u === daliu ? '与其每天追问他"作业做了没"，不如每周留一个晚上作为你们的"特别时间"——不谈学习、不谈成绩，只做他喜欢的事。信任建立起来后很多问题会自然缓解。' : '复盘文档是一个很好的体现——你不仅在做项目，还在思考和沉淀。把类似的这些"证据"整理出来，不是等考核被动评估，而是主动让领导看到你的价值。', createdAt: msgAt(t, 3) },
+          { sender: 'user', content: '谢谢你的建议，我觉得可以试试。', createdAt: msgAt(t, 4) },
+        ]},
+      },
+    })
+  }
+
+  console.log(`  ✓ 创建 18 个聊天会话（含 10 个基础 + 8 个追加，4-8 条消息，0-15 天前）\n`)
 
   console.log('🎉 种子数据填充完成！\n')
   console.log('   管理员账号: admin / admin123')

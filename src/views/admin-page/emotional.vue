@@ -16,7 +16,7 @@
             <circle cx="20" cy="20" r="16" fill="none" stroke="#ebeef5" stroke-width="4" />
             <circle
               cx="20" cy="20" r="16" fill="none"
-              :stroke="ringColor(row.moodScore)"
+              :stroke="moodScoreColor(row.moodScore)"
               stroke-width="4"
               stroke-linecap="round"
               :stroke-dasharray="100.53"
@@ -78,7 +78,7 @@ import { ref, reactive, onMounted } from 'vue'
 import pageHead from '@/components/admin-page/pageHead.vue'
 import tableSearch from '@/components/admin-page/tableSearch.vue'
 import type { Emotional, EmotionalListItem } from '@/api/emotional'
-import { getEmotionalList, getEmotionalDetail, deleteEmotional, MOOD_LABELS, MOOD_LABEL_COLORS } from '@/api/emotional'
+import { getEmotionalList, getEmotionalDetail, deleteEmotional, MOOD_LABELS, MOOD_LABEL_COLORS, moodScoreColor } from '@/api/emotional'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import emotionalDialog from '@/components/dialog/emotionalDialog.vue'
 
@@ -110,8 +110,8 @@ const loadData = async () => {
     })
     tableData.value = result.list
     pagination.total = result.total
-  } catch (error) {
-    ElMessage.error('加载情绪日志失败')
+  } catch {
+    // 拦截器已提示
   } finally {
     loading.value = false
   }
@@ -189,12 +189,6 @@ const handleDelete = async (row: EmotionalListItem) => {
    }
 }
 
-// ==================== 情绪标签样式 ====================
-const ringColor = (score: number): string => {
-  if (score <= 3) return '#f56c6c'
-  if (score <= 6) return '#e6a23c'
-  return '#67c23a'
-}
 
 const moodColor = (label: string): string => MOOD_LABEL_COLORS[label] || '#909399'
 

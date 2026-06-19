@@ -79,8 +79,8 @@ const loadData = async () => {
     })
     tableData.value = result.list
     pagination.total = result.total
-  } catch (error) {
-    ElMessage.error('加载咨询记录失败')
+  } catch {
+    // 拦截器已提示
   } finally {
     loading.value = false
   }

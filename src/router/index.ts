@@ -36,7 +36,7 @@ const router = createRouter({
       path: '/back',
       name: ROUTE_NAMES.backLayout,
       component: () => import('@/layouts/adminLayout.vue'),
-      redirect: '/back/knowledge',
+      redirect: '/back/dashboard',
       children: [
         {
           path: 'dashboard',
@@ -195,7 +195,7 @@ router.beforeEach(async (to, _from, next) => {
       const raw = localStorage.getItem('userInfo')
       const userInfo = raw ? JSON.parse(raw) : null
       if (userInfo?.roles?.includes('admin')) {
-        next({ path: '/back/knowledge' })
+        next({ path: '/back/dashboard' })
       } else {
         next({ path: '/user/home' })
       }
