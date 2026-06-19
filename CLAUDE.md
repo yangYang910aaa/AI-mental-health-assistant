@@ -1,6 +1,6 @@
 # mental-health — AI 心理健康助手
 
-Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），核心 API 已逐步从 mock 迁至真实数据库，剩余聊天/咨询/仪表盘仍在迁移中。
+Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），核心 API 已从 mock 迁至真实数据库，剩余聊天模块仍在迁移中。
 
 ---
 
@@ -65,7 +65,9 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   │   ├── mood.ts                    # 用户心情记录 CRUD（POST + GET 列表/详情 + DELETE）
 │   │   ├── emotional.ts               # 管理端情绪日志（列表/详情/删除，需 admin）
 │   │   ├── home.ts                    # 用户首页聚合（情绪统计 + 趋势 + 最近对话）
-│   │   └── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
+│   │   ├── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
+│   │   ├── consultations.ts           # 管理端咨询记录（列表/详情/删除，需 admin，ChatSession + ChatMessage）
+│   │   └── dashboard.ts               # 数据分析（KPI 聚合 + 趋势，需 admin，JS 端聚合避免 raw SQL 兼容性）
 │   ├── middleware/
 │   │   └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
 │   └── utils/
@@ -91,14 +93,16 @@ src/
 ├── vite-env.d.ts                    # Vite 类型 + *.vue 模块声明 + wangEditor 类型补丁
 │
 ├── types/
-│   └── router.d.ts                  # 扩展 RouteMeta：title、icon
+│   └── router.d.ts                  # 扩展 RouteMeta：title、icon、hidden
 │
 ├── utils/
 │   └── request.ts                   # Axios 封装（核心基础设施）
 │       ├── 单泛型 API：request.get<T>() / post<T>() 只需一个泛型
 │       ├── HTTP 状态码驱动：后端直接使用 HTTP 200/401/403/500 等
-│       ├── 401 → 清 token + replace 跳登录（防抖锁）
+│       ├── 401 → 清 token + userInfo + replace 跳登录（并发防抖锁）
 │       ├── 403 → 弹提示，不跳转
+│       ├── showError() 去重：相同文案 3 秒内不重复弹
+│       ├── silent 模式：传入 { silent: true } 禁用 toast，调用方自行处理
 │       └── BusinessError 类：携带 code 字段
 │
 ├── layouts/                         # 布局壳子（组装导航 + 内容区，路由直接引用）
@@ -114,6 +118,9 @@ src/
 │   ├── dashboard.ts                 # 数据分析：KPI + 趋势 + 分布
 │   ├── file.ts                      # 文件上传
 │   └── user.ts                      # 用户端 API（首页、聊天、心情记录）
+│
+├── composables/
+│   └── useProfile.ts                # 个人中心共享逻辑（头像/昵称/密码），两端共用
 │
 ├── stores/
 │   ├── admin.ts                     # 侧边栏折叠状态
@@ -140,10 +147,11 @@ src/
     │   ├── dashboard.vue            # 数据分析（6 KPI 卡片 + 5 ECharts 图表）✅ 已完成
     │   ├── knowledge.vue            # 知识文章（列表 + 搜索 + CRUD）✅ 已完成
     │   ├── consultations.vue        # 咨询记录（列表 + 分页 + 详情 + 删除）✅ 已完成
-    │   └── emotional.vue            # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
+    │   ├── emotional.vue            # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
+    │   └── adminProfile.vue         # 管理员个人中心（头像/昵称/密码，复用 useProfile）✅ 已完成
     ├── user-page/
     │   ├── userHome.vue             # 个人首页（统计卡片 + 趋势 + 最近对话）✅ 已完成
-    │   ├── userChat.vue             # AI 对话（会话列表 + 聊天气泡 + mock 回复）✅ 已完成
+    │   ├── userChat.vue             # AI 对话（会话列表 + 聊天气泡 + ⚠️ mock 回复）✅ 页面完成，后端待迁
     │   ├── userMood.vue             # 心情记录（表单 + 历史列表）✅ 已完成
     │   ├── userArticles.vue         # 健康知识列表（卡片网格 + 搜索筛选）✅ 已完成
     │   ├── userArticleDetail.vue    # 文章详情（富文本渲染）✅ 已完成
@@ -167,6 +175,12 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 ```
 
 `request.ts` 的响应拦截器只保留一条 401 路径（失败分支），不再同时维护两套。
+
+其他关键特性：
+- `showError()` 错误去重：相同文案 3 秒内只弹一个 toast
+- `silent: true` 配置：调用方可禁用 toast 自行处理（chat 发消息失败时气泡标红而非弹窗）
+- 401 并发防抖：`isRedirecting` 锁防止多个请求同时过期时重复跳转
+- `userInfo` 同步清理：401 时 token 和 userInfo 一起清，路由守卫不会读到过期角色信息
 
 ### 2. API 路径规范
 
@@ -518,13 +532,13 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/knowledge/articles/:id` | PUT | ✅ 真实后端（admin 鉴权 + 部分更新） |
 | `/api/knowledge/articles/:id` | DELETE | ✅ 真实后端（admin 鉴权 + ID 校验） |
 | `/api/file/upload` | POST | ✅ 真实后端（multipart + UUID 存储） |
-| `/api/consultations/records` | GET | ⚠️ mock |
-| `/api/consultations/records/:id` | GET | ⚠️ mock |
-| `/api/consultations/records/:id` | DELETE | ⚠️ mock |
+| `/api/consultations/records` | GET | ✅ 真实后端（admin 鉴权，ChatSession + User JOIN + 首/尾消息） |
+| `/api/consultations/records/:id` | GET | ✅ 真实后端（admin 鉴权，含完整对话消息） |
+| `/api/consultations/records/:id` | DELETE | ✅ 真实后端（admin 鉴权，级联删除消息） |
 | `/api/emotional/records` | GET | ✅ 真实后端（admin 鉴权，MoodRecord + User JOIN） |
 | `/api/emotional/records/:id` | GET | ✅ 真实后端（admin 鉴权，全量字段含 AI 分析） |
 | `/api/emotional/records/:id` | DELETE | ✅ 真实后端（admin 鉴权，ID 正整数校验） |
-| `/api/dashboard` | GET | ⚠️ mock |
+| `/api/dashboard` | GET | ✅ 真实后端（admin 鉴权，聚合 User/MoodRecord/ChatSession） |
 | `/api/user/home` | GET | ✅ 真实后端（聚合 MoodRecord + ChatSession） |
 | `/api/user/chat/sessions` | GET | ⚠️ mock |
 | `/api/user/chat/sessions/:id` | GET | ⚠️ mock |
@@ -542,7 +556,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 
 ### 🔴 第一优先级：逐步迁移 mock → 真实后端
 
-当前 `/api/auth/*`、`/api/knowledge/*`、`/api/file/*`、`/api/user/mood/*`、`/api/user/home` 已接入真实数据库。其余接口仍在 `vite.config.ts` mock 中。
+vite.config.ts 中仅剩 chat 模块的 3 个 mock handler（/api/user/chat/*）。其余所有接口均已迁至真实后端。
 按顺序逐个迁移到 `server/src/routes/`：
 
 | 顺序 | 模块 | 涉及表 | 需新增路由文件 | 状态 |
@@ -550,14 +564,14 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | 1 | 知识文章 CRUD | Article | `server/src/routes/knowledge.ts` | ✅ 已完成 |
 | 2 | 心情记录 | MoodRecord | `server/src/routes/mood.ts` | ✅ 已完成 |
 | 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` | ✅ 已完成 |
-| 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` | ❌ |
-| 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` | ❌ |
+| 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` | ❌ **最后一个** |
+| 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` | ✅ 已完成 |
 | 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` | ✅ 已完成 |
-| 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` | ❌ |
+| 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` | ✅ 已完成 |
 | 8 | 文件上传 | 文件存储 | `server/src/routes/file.ts` | ✅ 已完成 |
 
 每迁移一个模块，就删除 `vite.config.ts` 中对应的 mock handler。
-全部迁移完成后，删除整个 mock 插件。
+chat 迁移完成后，删除整个 mock 插件。
 
 ### 🔴 第二优先级：AI 对话接入 Claude API
 
@@ -576,10 +590,10 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | 模块 | 内容 |
 |------|------|
 | 个人中心 | `userProfile.vue` 完整实现（编辑资料、修改密码）✅ 已完成 |
-| 管理端个人中心 | admin 布局顶栏的头像下拉 → 个人中心页，复用用户端 profile 组件或独立实现 |
+| 管理端个人中心 | admin 布局顶栏的头像下拉 → 个人中心页 ✅ 已完成（adminProfile.vue + useProfile composable） |
+| 默认页重定向 | admin 登录后默认跳转 `/back/dashboard`（导航守卫 + 路由 redirect + 登录页按钮三处统一）✅ 已完成 |
 | AI 情绪分析 | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
-| 代码整理 | 提取 `formatTime` 到 `utils/format.ts` 共享 |
-| 代码整理 | 提取重复 CSS（table 样式、卡片）为公共样式 |
+| adminLayout 背景 | 去掉 content-container 白底，统一 #fff 背景 + 卡片阴影边框 ✅ 已完成 |
 
 ---
 
@@ -595,6 +609,22 @@ getUserMoods(userId, page, size)     // GET /user/mood
 - **个人中心实现**：`userProfile.vue` 头像上传 + 昵称编辑 + 密码修改，后端 `PUT /api/auth/profile` + `PUT /api/auth/password`
 - **request.ts 双弹消息**：非 401/403 错误分支统一 reject `BusinessError`，组件 catch 检查 `instanceof` 避免重复 ElMessage
 - **mood.ts 冗余字段**：移除 schema 和 handler 中写传不存的 `userName` 字段
+- **管理端个人中心**：新建 `adminProfile.vue`，抽取 `useProfile` composable 共享头像/昵称/密码逻辑
+- **管理端默认跳转**：三处统一为 `/back/dashboard`（路由 redirect + 导航守卫 + 登录页按钮）
+- **种子聊天数据**：聊天会话 2→18 个（每用户 1-2 个，4-8 条消息，0-15 天分散）
+- **dashboard 除零风险**：`activeRate` / `riskRate` 加零除保护
+- **userId 硬编码兜底**：三页 `|| 1001` 改为 `?? 0`，token 异常时 API 报错而非静默写错用户
+- **request.ts 全面加固**：`showError()` 3 秒去重 + `silent` 配置 + 401 路径精确匹配 + `userInfo` 同步清理 + 成功分支 `data` 安全网 + 类型铁律注释
+- **全局重复弹窗清理**：`consultations.vue` / `emotional.vue` 删除双重 `ElMessage.error`
+- **emotional.vue ringColor**：替换为 `api/emotional.ts` 导出的 `moodScoreColor`，消除重复颜色逻辑
+- **consultations.ts 列表优化**：列表不再加载全量消息，改为 `messages.take(1)` + 批量 `distinct` 首条用户消息
+- **emotional.ts / mood.ts sleepDuration**：`instanceof Object` → `typeof === 'object' && !== null` 收窄
+- **mood.ts detail**：`...record` 展开改为显式字段 + `pressureLevel ?? 0`
+- **userArticleDetail ID 无效**：`loading` 停止 + 跳转列表，不再永远转圈
+- **userArticles total**：API 报错时同步清 `total=0`，分页组件不残留
+- **userMood 详情弹窗**：报错保留弹窗不闪关，用户可重试
+- **userHome formatTime**：加空值保护
+- **login 返回首页**：从 admin `knowledge` 改为公开 `userArticles`
 
 ---
 

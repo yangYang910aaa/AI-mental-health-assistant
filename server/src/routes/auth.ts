@@ -20,6 +20,7 @@ const registerBodySchema = {
   properties: {
     username: { type: 'string', minLength: 1 },
     password: { type: 'string', minLength: 6 },
+    email:    { type: 'string', minLength: 1 },
   },
 } as const
 
@@ -30,16 +31,19 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/login', { schema: { body: loginBodySchema } }, async (request, reply) => {
     const { username, password } = request.body as { username: string; password: string }
 
-    // 1.查用户:根据用户名查询用户, 如果用户不存在，返回401,如果用户存在，继续验证密码
-    const user = await prisma.user.findUnique({ where: { username } })
+    // 1.查用户:支持用户名或邮箱登录（含 '@' 则按邮箱查）
+    const isEmail = username.includes('@')
+    const user = isEmail
+      ? await prisma.user.findUnique({ where: { email: username } })
+      : await prisma.user.findUnique({ where: { username } })
     if (!user) {
-      return reply.status(401).send({ code: 401, message: '用户名或密码错误', data: null })
+      return reply.status(401).send({ code: 401, message: '账号或密码错误', data: null })
     }
 
     // 2.验证密码:对比密码哈希值是否匹配
     const valid = await bcrypt.compare(password, user.passwordHash)
     if (!valid) {
-      return reply.status(401).send({ code: 401, message: '用户名或密码错误', data: null })
+      return reply.status(401).send({ code: 401, message: '账号或密码错误', data: null })
     }
 
     // 3.签发 token:根据用户ID和角色生成 JWT
@@ -64,18 +68,29 @@ export async function authRoutes(app: FastifyInstance) {
 
   // ========== 注册接口 /api/auth/register ==========
   app.post('/api/auth/register', { schema: { body: registerBodySchema } }, async (request, reply) => {
-    const { username, password } = request.body as { username: string; password: string }
+    const { username, password, email, nickname } = request.body as { username: string; password: string; email?: string; nickname?: string }
 
-    // 1.检查用户名是否已存在, 如果已存在，返回409,如果不存在，继续创建注册
+    // 1.检查用户名是否已存在
     const exists = await prisma.user.findUnique({ where: { username } })
     if (exists) {
       return reply.status(409).send({ code: 409, message: '用户名已存在', data: null })
     }
 
-    // 2.创建用户:将用户名和密码哈希值存储到数据库中
+    // 2.邮箱可选：填了才校验格式 + 去重
+    if (email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return reply.status(400).send({ code: 400, message: '邮箱格式不正确', data: null })
+      }
+      const emailExists = await prisma.user.findUnique({ where: { email } })
+      if (emailExists) {
+        return reply.status(409).send({ code: 409, message: '该邮箱已被注册', data: null })
+      }
+    }
+
+    // 3.创建用户
     const passwordHash = await bcrypt.hash(password, 10)
     await prisma.user.create({
-      data: { username, passwordHash, nickname: username, role: 'user' },
+      data: { username, passwordHash, nickname: nickname?.trim() || username, role: 'user', email: email || null },
     })
 
     return reply.send({ code: 200, message: '注册成功', data: null })

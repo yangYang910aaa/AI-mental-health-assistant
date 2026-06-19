@@ -11,6 +11,7 @@ interface RegisterParams {
   username: string
   password: string
   nickname?: string
+  email?: string
 }
 
 // 响应数据类型

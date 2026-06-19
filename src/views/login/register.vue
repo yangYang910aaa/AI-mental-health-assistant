@@ -37,6 +37,16 @@
         />
       </el-form-item>
 
+      <!-- 邮箱（选填） -->
+      <el-form-item prop="email">
+        <el-input
+          v-model="formData.email"
+          placeholder="请输入邮箱（选填）"
+          :prefix-icon="Message"
+          size="large"
+        />
+      </el-form-item>
+
       <!-- 昵称（可选） -->
       <el-form-item prop="nickname">
         <el-input
@@ -97,7 +107,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { User, UserFilled, Lock, Back } from '@element-plus/icons-vue'
+import { User, UserFilled, Lock, Back, Message } from '@element-plus/icons-vue'
 import { ROUTE_NAMES } from '@/router'
 import { registerApi } from '@/api/auth'
 
@@ -114,6 +124,7 @@ const logoUrl = new URL('@/assets/logo.svg', import.meta.url).href
 // 表单数据
 const formData = reactive({
   username: '',
+  email: '',
   nickname: '',
   password: '',
   confirmPassword: '',
@@ -134,6 +145,9 @@ const validateConfirmPassword = (_rule: any, value: string, callback: (error?: E
 const rules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
+  ],
+  email: [
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -156,6 +170,7 @@ const handleRegister = async () => {
       username: formData.username,
       password: formData.password,
       nickname: formData.nickname || undefined,
+      email: formData.email || undefined,
     })
     ElMessage.success('注册成功，请登录')
     router.push({ name: ROUTE_NAMES.login })
