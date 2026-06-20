@@ -6,7 +6,7 @@ import { updateProfile, changePassword } from '@/api/auth'
 import { uploadFile } from '@/api/file'
 
 /**
- * 个人中心共享逻辑 —— 头像上传、昵称编辑、密码修改。
+ * 个人中心共享逻辑 —— 头像上传、昵称编辑、邮箱编辑、密码修改。
  * 用户端和管理端共用。
  *
  * @param fileInput         模板 ref，指向 hidden file input（组件自己声明，满足 vue-tsc）
@@ -83,6 +83,39 @@ export function useProfile(
     }
   }
 
+  // ==================== 邮箱 ====================
+
+  const email = ref(userStore.userInfo?.email || '')
+  const savingEmail = ref(false)
+
+  const saveEmail = async () => {
+    const trimmed = email.value.trim()
+    if (!trimmed) {
+      ElMessage.warning('邮箱不能为空')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      ElMessage.warning('请输入正确的邮箱格式')
+      return
+    }
+    if (trimmed === userStore.userInfo?.email) {
+      ElMessage.info('邮箱未更改')
+      return
+    }
+
+    savingEmail.value = true
+    try {
+      const updated = await updateProfile({ email: trimmed })
+      userStore.setUser(updated)
+      email.value = updated.email
+      ElMessage.success('邮箱已保存')
+    } catch (err: any) {
+      if (!(err instanceof BusinessError)) ElMessage.error(err.message || '保存失败')
+    } finally {
+      savingEmail.value = false
+    }
+  }
+
   // ==================== 密码 ====================
 
   const passwordForm = reactive({
@@ -147,6 +180,10 @@ export function useProfile(
     nickname,
     savingNickname,
     saveNickname,
+    // 邮箱
+    email,
+    savingEmail,
+    saveEmail,
     // 密码
     passwordForm,
     passwordRules,
