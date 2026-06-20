@@ -22,6 +22,7 @@ export const ROUTE_NAMES = {
   authLayout: 'authLayout',
   login: 'login',
   register: 'register',
+  forgotPassword: 'forgotPassword',
 } as const
 
 // 定义路由
@@ -134,6 +135,12 @@ const router = createRouter({
           name:'register',
           component:()=>import('@/views/login/register.vue'),
           meta:{title:'注册'}
+        },
+        {
+          path:'forgot-password',
+          name:'forgotPassword',
+          component:()=>import('@/views/login/forgotPassword.vue'),
+          meta:{title:'忘记密码'}
         }
       ]
     }

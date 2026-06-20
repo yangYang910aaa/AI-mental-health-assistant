@@ -14,8 +14,10 @@ model User {
   passwordHash String    @db.VarChar(255)
   nickname     String?   @db.VarChar(50)
   avatar       String?   @db.VarChar(500)
-  role         String    @default("user") @db.VarChar(20)
-  createdAt    DateTime  @default(now())
+  role          String    @default("user") @db.VarChar(20)
+  resetToken    String?   @db.VarChar(255)
+  resetTokenExp DateTime?
+  createdAt     DateTime  @default(now())
 
   moods          MoodRecord[]
   chatSessions   ChatSession[]

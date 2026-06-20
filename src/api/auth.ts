@@ -11,7 +11,7 @@ interface RegisterParams {
   username: string
   password: string
   nickname?: string
-  email?: string
+  email: string
 }
 
 // 响应数据类型
@@ -71,3 +71,13 @@ export const updateProfile = (params: { nickname?: string; avatar?: string }) =>
 /** 修改密码 */
 export const changePassword = (params: { oldPassword: string; newPassword: string }) =>
   request.put<void>('/auth/password', params)
+
+// ==================== 忘记 / 重置密码 ====================
+
+/** 忘记密码——发送重置邮件 */
+export const forgotPassword = (email: string) =>
+  request.post<{ message: string }>('/auth/forgot-password', { email })
+
+/** 重置密码——验证码 + 新密码 */
+export const resetPassword = (email: string, code: string, newPassword: string) =>
+  request.post<{ message: string }>('/auth/reset-password', { email, code, newPassword })

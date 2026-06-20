@@ -5,9 +5,9 @@
   -->
   <div class="register-card">
     <!-- ==================== 返回首页 ==================== -->
-    <div class="back-home" @click="router.push({ name: ROUTE_NAMES.knowledge })">
+    <div class="back-home" @click="router.push({ name: ROUTE_NAMES.login })">
       <el-icon><Back /></el-icon>
-      <span>返回首页</span>
+      <span>返回登录</span>
     </div>
 
     <!-- ==================== 品牌区域 ==================== -->
@@ -37,11 +37,11 @@
         />
       </el-form-item>
 
-      <!-- 邮箱（选填） -->
+      <!-- 邮箱 -->
       <el-form-item prop="email">
         <el-input
           v-model="formData.email"
-          placeholder="请输入邮箱（选填）"
+          placeholder="请输入邮箱"
           :prefix-icon="Message"
           size="large"
         />
@@ -147,6 +147,7 @@ const rules: FormRules = {
     { required: true, message: '请输入用户名', trigger: 'blur' },
   ],
   email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
   ],
   password: [
@@ -170,7 +171,7 @@ const handleRegister = async () => {
       username: formData.username,
       password: formData.password,
       nickname: formData.nickname || undefined,
-      email: formData.email || undefined,
+      email: formData.email,
     })
     ElMessage.success('注册成功，请登录')
     router.push({ name: ROUTE_NAMES.login })

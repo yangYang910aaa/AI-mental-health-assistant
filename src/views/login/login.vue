@@ -5,10 +5,6 @@
   -->
   <div class="login-card">
     <!-- ==================== 品牌区域 ==================== -->
-    <div class="back-home" @click="router.push({ name: ROUTE_NAMES.userArticles })">
-        <el-icon><Back /></el-icon>
-        <span>返回首页</span>
-    </div>
     <div class="brand">
       <div class="brand-logo">
         <el-image :src="logoUrl" alt="Logo" style="width: 56px; height: 56px" />
@@ -64,6 +60,11 @@
       </el-form-item>
     </el-form>
 
+    <!-- ==================== 忘记密码 ==================== -->
+    <p class="forgot-link">
+      <a href="#" @click.prevent="goForgot">忘记密码？</a>
+    </p>
+
     <!-- ==================== 底部链接 ==================== -->
     <p class="footer-link">
       没有账号？<router-link to="/auth/register">去注册</router-link>
@@ -75,7 +76,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
-import { User, Lock, Back } from '@element-plus/icons-vue'
+import { User, Lock } from '@element-plus/icons-vue'
 import { ROUTE_NAMES } from '@/router'
 import { loginApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
@@ -92,11 +93,13 @@ const loading = ref(false)
 // Vite 静态资源路径：import.meta.url 保证开发环境和生产环境都能正确解析
 const logoUrl = new URL('@/assets/logo.svg', import.meta.url).href
 
-// 表单数据
+// 表单数据：优先恢复离开前的输入，其次从忘记密码页带回的邮箱
 const formData = reactive({
-  username: '',
+  username: sessionStorage.getItem('login:pendingEmail') || (route.query.email as string) || '',
   password: '',
 })
+// 用一次就清掉，避免下次进入还残留
+sessionStorage.removeItem('login:pendingEmail')
 
 // 表单校验规则
 const rules: FormRules = {
@@ -107,6 +110,16 @@ const rules: FormRules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' },
   ],
+}
+
+// 跳转忘记密码前保存当前输入
+const goForgot = () => {
+  if (formData.username) {
+    sessionStorage.setItem('login:pendingEmail', formData.username)
+  }
+  // 如果是邮箱格式，在忘记密码页自动填入邮箱
+  const query = formData.username.includes('@') ? '?email=' + encodeURIComponent(formData.username) : ''
+  router.push('/auth/forgot-password' + query)
 }
 
 // 登录逻辑
@@ -164,23 +177,6 @@ const handleLogin = async () => {
     0 4px 24px rgba(0, 0, 0, 0.06),
     0 12px 48px rgba(0, 0, 0, 0.04);
   animation: card-in 0.6s ease-out;
-
-    // ==================== 返回首页 ====================
-    // 绝对定位在卡片左上角，不参与文档流，不影响品牌区和表单的居中布局
-    .back-home {
-      position: absolute;
-      top: 16px;
-      left: 20px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 15px;
-      cursor: pointer;
-      transition: color 0.2s;
-      &:hover {
-        color: #8b9e7e;
-      }
-    }
 
     // ==================== 品牌区 ====================
     // 居中排列：Logo → 标题 → 副标题，信息密度递减，引导视线从上到下
@@ -254,6 +250,14 @@ const handleLogin = async () => {
             }
         }
     }
+    // ==================== 忘记密码 ====================
+    .forgot-link {
+      text-align: center;
+      margin: 0 0 12px;
+      font-size: 14px;
+      a { color: #8b9e7e; &:hover { color: #6b8a5e; } }
+    }
+
         // ==================== 底部链接 ====================
     // 颜色偏弱（#b0ad9f），不和表单争视觉优先级
     // 链接用鼠尾草绿（#8b9e7e），和背景渐变同色系
