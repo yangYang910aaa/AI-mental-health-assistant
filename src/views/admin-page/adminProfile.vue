@@ -31,6 +31,27 @@
         </div>
 
         <div class="info-row">
+          <span class="info-label">邮箱</span>
+          <div class="info-edit">
+            <el-input
+              v-model="email"
+              :maxlength="255"
+              placeholder="请输入邮箱"
+              class="nick-input"
+              @keyup.enter="saveEmail"
+            />
+            <el-button
+              type="primary"
+              size="small"
+              :loading="savingEmail"
+              @click="saveEmail"
+            >
+              保存
+            </el-button>
+          </div>
+        </div>
+
+        <div class="info-row">
           <span class="info-label">昵称</span>
           <div class="info-edit">
             <el-input
@@ -130,6 +151,9 @@ const {
   nickname,
   savingNickname,
   saveNickname,
+  email,
+  savingEmail,
+  saveEmail,
   passwordForm,
   passwordRules,
   savingPassword,

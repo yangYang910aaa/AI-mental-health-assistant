@@ -62,6 +62,7 @@ export async function authRoutes(app: FastifyInstance) {
           username: user.username,
           nickname: user.nickname ?? user.username,
           avatar: user.avatar ?? '',
+          email: user.email ?? '',
           roles: [user.role],
         },
       },
@@ -113,6 +114,7 @@ export async function authRoutes(app: FastifyInstance) {
         username: dbUser.username,
         nickname: dbUser.nickname ?? dbUser.username,
         avatar: dbUser.avatar ?? '',
+        email: dbUser.email ?? '',
         roles: [dbUser.role],
       },
     })
@@ -125,6 +127,7 @@ export async function authRoutes(app: FastifyInstance) {
     properties: {
       nickname: { type: 'string', minLength: 1, maxLength: 50 },
       avatar:   { type: 'string', minLength: 1, maxLength: 500 },
+      email:    { type: 'string', minLength: 1, maxLength: 255 },
     },
   } as const
 
@@ -143,12 +146,24 @@ export async function authRoutes(app: FastifyInstance) {
     preHandler: [requireAuth],
   }, async (request, reply) => {
     const user = (request as any).user as { userId: number }
-    const body = request.body as { nickname?: string; avatar?: string }
+    const body = request.body as { nickname?: string; avatar?: string; email?: string }
+
+    // 邮箱变更：校验格式 + 去重
+    if (body.email !== undefined) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+        return reply.status(400).send({ code: 400, message: '邮箱格式不正确', data: null })
+      }
+      const existing = await prisma.user.findUnique({ where: { email: body.email } })
+      if (existing && existing.id !== user.userId) {
+        return reply.status(409).send({ code: 409, message: '该邮箱已被使用', data: null })
+      }
+    }
 
     // 部分更新：只更新传入的字段
     const data: Record<string, unknown> = {}
     if (body.nickname !== undefined) data.nickname = body.nickname
     if (body.avatar !== undefined)   data.avatar   = body.avatar
+    if (body.email !== undefined)    data.email    = body.email
 
     if (Object.keys(data).length === 0) {
       return reply.status(400).send({ code: 400, message: '至少需要修改一项', data: null })
@@ -164,6 +179,7 @@ export async function authRoutes(app: FastifyInstance) {
         username: updated.username,
         nickname: updated.nickname ?? updated.username,
         avatar: updated.avatar ?? '',
+        email: updated.email ?? '',
         roles: [updated.role],
       },
     })

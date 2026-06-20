@@ -20,6 +20,7 @@ export interface UserInfo {
   username: string
   nickname: string
   avatar: string
+  email: string
   roles: string[]
 }
 
@@ -64,8 +65,8 @@ export const logout = () => {
 
 // ==================== 个人中心 ====================
 
-/** 更新个人资料（昵称 / 头像） */
-export const updateProfile = (params: { nickname?: string; avatar?: string }) =>
+/** 更新个人资料（昵称 / 头像 / 邮箱） */
+export const updateProfile = (params: { nickname?: string; avatar?: string; email?: string }) =>
   request.put<UserInfo>('/auth/profile', params)
 
 /** 修改密码 */
