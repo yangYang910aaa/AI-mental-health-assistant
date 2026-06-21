@@ -19,12 +19,33 @@
           v-for="s in sessions"
           :key="s.id"
           class="session-item"
-          :class="{ active: s.id === activeSessionId }"
+          :class="{ active: s.id === activeSessionId, pinned: s.pinned }"
           @click="switchSession(s.id)"
         >
           <div class="session-item-top">
-            <span class="session-title">{{ s.title }}</span>
-            <span class="session-time">{{ formatTime(s.lastTime) }}</span>
+            <span class="session-title">
+              <el-icon v-if="s.pinned" class="pin-icon" :size="12"><Top /></el-icon>
+              {{ s.title }}
+            </span>
+            <div class="session-item-actions">
+              <span class="session-time">{{ formatTime(s.lastTime) }}</span>
+              <el-dropdown trigger="click" @command="handleSessionAction($event, s)" class="session-menu">
+                <span class="menu-trigger" @click.stop><el-icon :size="20"><MoreFilled /></el-icon></span>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="rename">
+                      <el-icon><Edit /></el-icon>重命名
+                    </el-dropdown-item>
+                    <el-dropdown-item command="pin">
+                      <el-icon><Top /></el-icon>{{ s.pinned ? '取消置顶' : '置顶' }}
+                    </el-dropdown-item>
+                    <el-dropdown-item command="delete"  class="danger-item">
+                      <el-icon><Delete /></el-icon>删除
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </div>
           <p class="session-preview">{{ s.lastMessage }}</p>
         </div>
@@ -68,19 +89,6 @@
           </div>
         </div>
 
-        <!-- AI 正在输入... -->
-        <div v-if="aiLoading" class="chat-bubble ai-bubble">
-          <div class="bubble-avatar">
-            <el-avatar :size="32"><el-icon><Sunrise /></el-icon></el-avatar>
-          </div>
-          <div class="bubble-content">
-            <div class="bubble-text typing">
-              <span class="dot" />
-              <span class="dot" />
-              <span class="dot" />
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- 输入区域 -->
@@ -113,9 +121,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Expand, Fold, Plus, Promotion, Sunrise, ChatDotRound } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
+import { Expand, Fold, Plus, Promotion, Sunrise, ChatDotRound, MoreFilled, Top, Edit, Delete } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getChatSessions, getChatMessages, sendMessage, type ChatSession, type ChatMessage } from '@/api/user'
+import { getChatSessions, getChatMessages, sendMessageStream, renameSession, togglePinSession, deleteChatSession, type ChatSession, type ChatMessage } from '@/api/user'
 
 const userStore = useUserStore()
 
@@ -201,13 +210,13 @@ const focusInput = () => nextTick(() => inputRef.value?.focus())
 
 // 新建对话
 const startNewChat = () => {
-  activeSessionId.value = null  
+  activeSessionId.value = null
   messages.value = [] //AI和用户的消息都为空
   inputText.value = ''// 清空输入框
   focusInput()
 }
 
-// 发送消息
+// 发送消息（流式）
 const handleSend = async () => {
   const text = inputText.value.trim()
   if (!text || aiLoading.value) return
@@ -215,46 +224,124 @@ const handleSend = async () => {
   inputText.value = ''
   aiLoading.value = true
 
-  // 乐观插入用户消息
+  // 乐观插入用户消息（临时 ID）
   const tempId = Date.now()
+  const tempTime = new Date().toISOString().replace('T', ' ').slice(0, 19)
   messages.value.push({
     id: tempId,
     sender: 'user',
     content: text,
-    time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    time: tempTime,
   })
   scrollToBottom()
 
-  try {
-    const userId = userStore.userInfo?.id ?? 0
-    const result = await sendMessage(activeSessionId.value, text, userId)
+  // 跟踪流式 AI 气泡位置
+  let aiBubbleIndex = -1
 
-    // 替换临时消息
-    const idx = messages.value.findIndex((m) => m.id === tempId)
-    if (idx !== -1) messages.value[idx] = result.userMessage
+  await sendMessageStream(activeSessionId.value, text, {
+    onMeta({ sessionId, userMessage }) {
+      // 替换临时用户消息为真实消息
+      const idx = messages.value.findIndex((m) => m.id === tempId)
+      if (idx !== -1) messages.value[idx] = userMessage
 
-    // 添加 AI 回复
-    messages.value.push(result.aiReply)
+      // 创建空 AI 气泡，开始往里填字
+      messages.value.push({
+        id: -Date.now(), // 临时负 ID，done 时替换
+        sender: 'assistant',
+        content: '',
+        time: '',
+      })
+      aiBubbleIndex = messages.value.length - 1
 
-    // 如果是新会话，更新 sessionId 并刷新列表
-    if (!activeSessionId.value) {
-      activeSessionId.value = result.userMessage.id // mock 里 sessionId 随消息返回
-      await loadSessions()
-    } else {
-      // 更新会话列表中的最后消息
-      const s = sessions.value.find((s) => s.id === activeSessionId.value)
-      if (s) {
-        s.lastMessage = result.aiReply.content
-        s.lastTime = result.aiReply.time
-        s.messageCount = (s.messageCount || 0) + 2
+      // 新会话 → 记录 sessionId
+      if (!activeSessionId.value) {
+        activeSessionId.value = sessionId
       }
-    }
 
-    scrollToBottom()
-  } catch {
-    // 错误由拦截器处理
-  } finally {
-    aiLoading.value = false
+      scrollToBottom()
+    },
+
+    onChunk({ content }) {
+      // 往 AI 气泡里追加文字
+      if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
+        messages.value[aiBubbleIndex].content += content
+        scrollToBottom()
+      }
+    },
+
+    async onDone({ aiReply }) {
+      // 替换临时 AI 气泡为完整消息
+      if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
+        messages.value[aiBubbleIndex] = aiReply
+      }
+
+      // 刷新会话列表
+      await loadSessions()
+
+      aiLoading.value = false
+      scrollToBottom()
+      focusInput()
+    },
+
+    onError(message) {
+      // 移除空的 AI 气泡
+      if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
+        messages.value.splice(aiBubbleIndex, 1)
+      }
+      console.error('[Chat] 流式发送失败:', message)
+      aiLoading.value = false
+    },
+  })
+}
+
+// 会话操作：重命名 / 置顶 / 删除
+const handleSessionAction = async (command: string, session: ChatSession) => {
+  switch (command) {
+    case 'rename':
+      try {
+        const { value } = await ElMessageBox.prompt('请输入新标题', '重命名', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          inputValue: session.title,
+          inputValidator: (v: string) => v.trim().length > 0 || '标题不能为空',
+        } as any)
+        if (value?.trim()) {
+          await renameSession(session.id, value.trim())
+          session.title = value.trim()
+          // 同时更新侧栏显示
+          if (activeSessionId.value === session.id) {
+            // currentSessionTitle is computed, will auto-update
+          }
+        }
+      } catch { /* 用户取消 */ }
+      break
+
+    case 'pin':
+      try {
+        const result = await togglePinSession(session.id)
+        session.pinned = result.pinned
+        // 重新排序：置顶在前
+        sessions.value.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+          return 0 // 保持原有顺序
+        })
+      } catch { /* 忽略 */ }
+      break
+
+    case 'delete':
+      try {
+        await ElMessageBox.confirm('删除后对话记录不可恢复，确定删除？', '删除对话', {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning',
+        })
+        await deleteChatSession(session.id)
+        sessions.value = sessions.value.filter((s) => s.id !== session.id)
+        if (activeSessionId.value === session.id) {
+          startNewChat()
+        }
+      } catch { /* 用户取消 */ }
+      break
   }
 }
 
@@ -289,8 +376,8 @@ watch(activeSessionId, () => scrollToBottom())
     transition: width 0.2s;
     flex-shrink: 0;
 
-    &.collapsed { 
-      width: 48px; 
+    &.collapsed {
+      width: 48px;
     }
 
     .sidebar-header {
@@ -319,8 +406,8 @@ watch(activeSessionId, () => scrollToBottom())
       cursor: pointer;
       font-size: 14px;
       transition: background 0.2s;
-      &:hover { 
-        background: #f8f6f3; 
+      &:hover {
+        background: #f8f6f3;
       }
     }
 
@@ -330,20 +417,57 @@ watch(activeSessionId, () => scrollToBottom())
       border-radius: 10px;
       cursor: pointer;
       transition: background 0.15s;
-      &:hover { 
-        background: #f8f6f3; 
+      position: relative;
+      &:hover {
+        background: #f8f6f3;
       }
-      &.active { 
-        background: #e8f0e4; 
+      &.active {
+        background: #e8f0e4;
+      }
+
+      .pin-icon {
+        color: #8b9e7e;
+        margin-right: 2px;
+        flex-shrink: 0;
       }
 
       .session-item-top {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         margin-bottom: 4px;
-        .session-title { font-size: 13px; font-weight: 500; color: #374151; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .session-time { font-size: 11px; color: #9ca3af; flex-shrink: 0; }
+        .session-title {
+          font-size: 13px; font-weight: 500; color: #374151;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          display: flex; align-items: center; gap: 2px;
+          flex: 1; min-width: 0; margin-right: 4px;
+        }
       }
+
+      .session-item-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+        .session-time { font-size: 11px; color: #9ca3af; }
+        .menu-trigger {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px; height: 28px;
+          color: #9ca3af;
+          cursor: pointer;
+          border-radius: 6px;
+          opacity: 0.55;
+          transition: opacity 0.15s, background 0.15s, color 0.15s;
+          &:hover {
+            background: #e5e7eb;
+            color: #374151;
+            opacity: 1;
+          }
+        }
+      }
+
       .session-preview {
         margin: 0;
         font-size: 12px;
@@ -513,5 +637,55 @@ watch(activeSessionId, () => scrollToBottom())
       line-height: 1.5;
     }
   }
+}
+
+</style>
+
+<style lang="scss">
+/* ==================== 下拉菜单全局美化 ==================== */
+/* 下拉菜单被 teleport 到 body，必须用非 scoped 样式 */
+
+.el-dropdown-menu {
+  padding: 4px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+  border: none !important;
+  min-width: 140px !important;
+}
+
+.el-dropdown-menu .el-dropdown-menu__item {
+  padding: 8px 12px !important;
+  border-radius: 7px !important;
+  margin: 2px 0 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: background 0.12s, color 0.12s !important;
+}
+
+.el-dropdown-menu .el-dropdown-menu__item .el-icon {
+  font-size: 16px !important;
+}
+
+.el-dropdown-menu .el-dropdown-menu__item:hover {
+  background: #f5f5f5 !important;
+  color: #374151 !important;
+}
+
+.el-dropdown-menu .danger-item {
+  color: #f56c6c !important;
+}
+
+.el-dropdown-menu .danger-item:hover {
+  background-color: #fef0f0 !important;
+  color: #e64545 !important;
+}
+
+.el-dropdown-menu .el-dropdown-menu__item.is-divided {
+  margin-top: 6px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid #f0f0f0 !important;
 }
 </style>

@@ -12,6 +12,7 @@ import { fileRoutes } from './routes/file.js'
 import { emotionalRoutes } from './routes/emotional.js'
 import { consultationsRoutes } from './routes/consultations.js'
 import { dashboardRoutes } from './routes/dashboard.js'
+import { chatRoutes } from './routes/chat.js'
 
 const app = Fastify({ logger: false, bodyLimit: 50 * 1024 * 1024 }) // 50MB，支持 base64 图片
 
@@ -34,6 +35,7 @@ await app.register(fileRoutes)// 文件上传
 await app.register(emotionalRoutes)//情绪日志
 await app.register(consultationsRoutes)//咨询记录
 await app.register(dashboardRoutes)//数据分析
+await app.register(chatRoutes)//AI 聊天（DeepSeek）
 
 // ==================== 全局错误处理 ====================
 app.setErrorHandler((error: { statusCode?: number; message?: string }, _request, reply) => {

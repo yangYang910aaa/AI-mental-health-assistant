@@ -1,6 +1,6 @@
 # mental-health — AI 心理健康助手
 
-Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），核心 API 已从 mock 迁至真实数据库，剩余聊天模块仍在迁移中。
+Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + MySQL），所有 API 已从 mock 迁至真实数据库。
 
 ---
 
@@ -32,6 +32,7 @@ Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + 
 | 数据库 | MySQL（通过 mariadb 驱动连接） | — |
 | 认证 | JWT（`jsonwebtoken`）+ bcryptjs 密码加密 | — |
 | 校验 | Fastify 内置 JSON Schema | — |
+| 邮件 | nodemailer（SMTP，忘记密码发送验证码） | ^9.0 |
 
 ## 常用命令
 
@@ -60,21 +61,23 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   ├── index.ts                       # Fastify 入口，注册插件/路由，监听 :3000
 │   ├── db.ts                          # Prisma 7 客户端（mariadb 适配器 + dotenv）
 │   ├── routes/
-│   │   ├── auth.ts                    # 登录/注册/验证 + PUT /api/auth/profile + password
+│   │   ├── auth.ts                    # 登录/注册/验证 + 忘记密码/重置密码 + profile + password
 │   │   ├── knowledge.ts               # 知识文章 CRUD + /suggestions 标题联想
 │   │   ├── mood.ts                    # 用户心情记录 CRUD（POST + GET 列表/详情 + DELETE）
 │   │   ├── emotional.ts               # 管理端情绪日志（列表/详情/删除，需 admin）
 │   │   ├── home.ts                    # 用户首页聚合（情绪统计 + 趋势 + 最近对话）
 │   │   ├── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
 │   │   ├── consultations.ts           # 管理端咨询记录（列表/详情/删除，需 admin，ChatSession + ChatMessage）
+│   │   ├── chat.ts                    # AI 聊天（会话列表/消息/发送 SSE 流式/删除，需登录，对接 DeepSeek API）
 │   │   └── dashboard.ts               # 数据分析（KPI 聚合 + 趋势，需 admin，JS 端聚合避免 raw SQL 兼容性）
 │   ├── middleware/
 │   │   └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
 │   └── utils/
 │       ├── format.ts                  # formatDateTime() —— Date → "YYYY-MM-DD HH:mm:ss"
-│       └── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
+│       ├── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
+│       └── email.ts                   # sendResetEmail() —— nodemailer 发送 6 位验证码
 ├── prisma/
-│   ├── schema.prisma                  # 数据模型：User/MoodRecord/ChatSession/ChatMessage/Article
+│   ├── schema.prisma                  # 数据模型：User(email/resetToken/resetTokenExp) + MoodRecord + ChatSession + ChatMessage + Article
 │   ├── seed.ts                        # 种子：11 用户 + 15 文章 + 50 心情 + 2 会话
 │   └── migrations/                    # Prisma 迁移历史
 ├── scripts/
@@ -83,8 +86,8 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   ├── seed-moods.ts                  # 单独填充心情记录（每用户 7 天均匀分布）
 │   └── seed-articles.ts               # 单独填充文章（+20 篇）
 ├── prisma.config.ts                   # Prisma 7 连接配置（datasource.url）
-├── .env                               # DATABASE_URL + JWT_SECRET（不入 git）
-└── package.json                       # 独立依赖（fastify/prisma/bcryptjs/jsonwebtoken）
+├── .env                               # DATABASE_URL + JWT_SECRET + SMTP_*（不入 git）
+└── package.json                       # 独立依赖（fastify/prisma/bcryptjs/jsonwebtoken/nodemailer）
 
 src/
 ├── main.ts                          # 入口：createPinia + ElementPlus + Router + 全局图标注册
@@ -111,7 +114,7 @@ src/
 │   └── authLayout.vue               # 认证页：渐变背景 + 装饰浮动圆 + 居中卡片
 │
 ├── api/                             # 按模块拆分，每个文件一个业务域 + 共享常量
-│   ├── auth.ts                      # 登录/注册/退出 + UserInfo 类型
+│   ├── auth.ts                      # 登录/注册/退出/忘记密码/重置密码 + UserInfo 类型
 │   ├── knowledge.ts                 # 文章 CRUD + 分类/标签常量
 │   ├── consultations.ts             # 咨询记录 CRUD + Message 类型
 │   ├── emotional.ts                 # 情绪日志 CRUD + 共享常量（标签、颜色、工具函数）
@@ -120,7 +123,7 @@ src/
 │   └── user.ts                      # 用户端 API（首页、聊天、心情记录）
 │
 ├── composables/
-│   └── useProfile.ts                # 个人中心共享逻辑（头像/昵称/密码），两端共用
+│   └── useProfile.ts                # 个人中心共享逻辑（头像/昵称/邮箱/密码），两端共用
 │
 ├── stores/
 │   ├── admin.ts                     # 侧边栏折叠状态
@@ -148,17 +151,18 @@ src/
     │   ├── knowledge.vue            # 知识文章（列表 + 搜索 + CRUD）✅ 已完成
     │   ├── consultations.vue        # 咨询记录（列表 + 分页 + 详情 + 删除）✅ 已完成
     │   ├── emotional.vue            # 情绪日志（列表 + 搜索 + 详情 + 删除）✅ 已完成
-    │   └── adminProfile.vue         # 管理员个人中心（头像/昵称/密码，复用 useProfile）✅ 已完成
+    │   └── adminProfile.vue         # 管理员个人中心（头像/昵称/邮箱/密码，复用 useProfile）✅ 已完成
     ├── user-page/
     │   ├── userHome.vue             # 个人首页（统计卡片 + 趋势 + 最近对话）✅ 已完成
-    │   ├── userChat.vue             # AI 对话（会话列表 + 聊天气泡 + ⚠️ mock 回复）✅ 页面完成，后端待迁
+    │   ├── userChat.vue             # AI 对话（会话列表 + 聊天气泡 + SSE 流式打字机效果）✅ 已完成
     │   ├── userMood.vue             # 心情记录（表单 + 历史列表）✅ 已完成
     │   ├── userArticles.vue         # 健康知识列表（卡片网格 + 搜索筛选）✅ 已完成
     │   ├── userArticleDetail.vue    # 文章详情（富文本渲染）✅ 已完成
-    │   └── userProfile.vue          # 个人中心（头像上传 + 编辑昵称 + 修改密码）✅ 已完成
+    │   └── userProfile.vue          # 个人中心（头像/昵称/邮箱 + 修改密码）✅ 已完成
     └── login/
-        ├── login.vue                # 登录页（完整：校验 + API + 角色分流跳转）
-        └── register.vue             # 注册页（完整：表单校验 + API）
+        ├── login.vue                # 登录页（用户名/邮箱 + 密码，支持邮箱/用户名登录，带忘记密码入口）
+        ├── register.vue             # 注册页（用户名 + 邮箱(必填) + 昵称(选填) + 密码）
+        └── forgotPassword.vue       # 忘记密码（邮箱 → 6位验证码 → 新密码，单页面三步）
 ```
 
 ---
@@ -185,8 +189,13 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 ### 2. API 路径规范
 
 ```
-/api/auth/login               认证
-/api/auth/register            注册
+/api/auth/login               登录（支持用户名或邮箱）
+/api/auth/register            注册（邮箱必填）
+/api/auth/me                  验证 token
+/api/auth/profile             更新个人资料（昵称/头像/邮箱）
+/api/auth/password            修改密码
+/api/auth/forgot-password     忘记密码——发送 6 位验证码邮件
+/api/auth/reset-password      重置密码——验证码 + 新密码
 /api/knowledge/articles       知识文章 CRUD
 /api/consultations/records    咨询记录 CRUD
 /api/emotional/records        情绪日志 CRUD
@@ -194,7 +203,7 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 /api/file/upload              通用文件上传
 /api/user/home                用户端首页数据
 /api/user/chat/sessions       用户聊天会话
-/api/user/chat/send           用户发送消息
+/api/user/chat/send           用户发送消息（SSE 流式）
 /api/user/mood                用户心情记录
 ```
 
@@ -207,6 +216,10 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 - `GET    /consultations/records`     列表（分页）
 - `GET    /consultations/records/:id` 详情（含 messages）
 - `DELETE /consultations/records/:id` 删除
+- `GET    /user/chat/sessions`        用户会话列表
+- `GET    /user/chat/sessions/:id`    会话消息列表
+- `POST   /user/chat/send`            发送消息（SSE 流式）
+- `DELETE /user/chat/sessions/:id`    删除会话
 - `GET    /emotional/records`         情绪日志列表
 - `GET    /emotional/records/:id`     情绪日志详情
 - `DELETE /emotional/records/:id`     删除情绪日志
@@ -217,10 +230,10 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 
 ```ts
 export const ROUTE_NAMES = {
-  backLayout, dashboard, knowledge, consultations, emotional,       // 管理端
+  backLayout, dashboard, knowledge, consultations, emotional, adminProfile, // 管理端
   userLayout, userHome, userChat, userMood, userArticles,           // 用户端
   userArticleDetail, userProfile,
-  login, register,                                                  // 认证
+  login, register, forgotPassword,                                   // 认证
 } as const
 router.push({ name: ROUTE_NAMES.knowledge })  // ✅ 用常量，不硬编码
 ```
@@ -245,12 +258,27 @@ TRIGGER_OPTIONS    // 触发因素选项
 
 所有引用情绪颜色的文件（userHome、userMood、dashboard、emotional、emotionalDialog）均从 `api/emotional.ts` import，修改颜色只需改一处。
 
-### 5. localStorage Key 约定
+### 5. localStorage / sessionStorage Key 约定
 
 | Key | 写方 | 读方 |
 |-----|------|------|
 | `token` | login.vue | request.ts 请求拦截器 |
 | `userInfo` | user store setUser() | user store 初始化恢复 |
+| `login:pendingEmail` (sessionStorage) | login.vue goForgot() | login.vue 初始化（保留离开前的输入） |
+
+### 6. 忘记密码流程
+
+采用 **6 位数字验证码** 方式（非邮件链接），单页面完成：
+
+1. 输入注册邮箱 → 获取验证码（60s 冷却，前后端双重限制）
+2. 输入 6 位验证码 + 新密码 + 确认密码 → 重置
+3. 完成 → 跳回登录页（自动带回邮箱/用户名）
+
+安全措施：
+- 防用户枚举：无论邮箱是否存在，统一返回"验证码已发送"
+- 验证码 bcrypt 哈希存储，15 分钟过期
+- 一次性使用：重置成功后立即清空
+- 邮件发送失败自动回滚，不残留令牌
 
 ### 6. 富文本（wangEditor）
 
@@ -455,12 +483,12 @@ getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
 |------|------|
 | 会话列表 | 左侧可折叠面板，展示历史对话，点击切换 |
 | 聊天气泡 | 用户绿色靠右 / AI 米白靠左，带头像和时间 |
-| 消息输入 | 底部 textarea + 发送按钮，回车发送 |
+| 消息输入 | 底部 textarea + 发送按钮，回车发送，Shift+Enter 换行 |
 | 新建对话 | 顶部按钮 + 右侧自动聚焦输入框 |
-| Mock 回复 | AI 延迟 0.6-1.4s 随机回复预设文案，有打字动画（三个跳动圆点） |
-| 乐观更新 | 用户消息立即显示，AI 回复到达后替换临时 ID |
+| SSE 流式回复 | `sendMessageStream` 通过 fetch + ReadableStream 接收 SSE（meta/chunk/done/error），打字机效果实时渲染 |
+| 乐观更新 | 用户消息立即显示（临时 ID），onMeta 替换为真实消息，onChunk 逐字追加 AI 气泡 |
 
-⚠️ 当前 mock 回复为随机预设文案，**与用户消息内容无关**。后续需替换为关键词匹配回复或接真实 AI API。
+后端实现见 `server/src/routes/chat.ts`，对接 **DeepSeek API**（`deepseek-chat` 模型），System Prompt 定义 AI 为"宁渡"心理健康助手（温暖共情 + 安全边界）。
 
 ### 心情记录 `userMood.vue`
 
@@ -482,13 +510,15 @@ getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
 
 复用 `api/knowledge.ts` 的 `fetchArticles` 和 `fetchArticleDetail`，仅查 `status: 'published'`。
 
-### 个人中心 `userProfile.vue`
+### 个人中心 `userProfile.vue` + `adminProfile.vue`
 
 | 区域 | 内容 |
 |------|------|
 | 头像区 | 居中展示当前头像，hover 显示相机覆盖层，点击触发文件选择 → `uploadFile()` 上传 → `PUT /api/auth/profile` 保存 → `userStore.setUser()` 即时刷新导航栏 |
-| 基本资料 | 用户名（只读）、可编辑昵称 + 保存按钮、角色标签 |
-| 修改密码 | 旧密码 + 新密码 + 确认新密码，校验通过后 `PUT /api/auth/password`
+| 基本资料 | 用户名（只读）、可编辑邮箱 + 保存按钮、可编辑昵称 + 保存按钮、角色标签 |
+| 修改密码 | 旧密码 + 新密码 + 确认新密码，校验通过后 `PUT /api/auth/password` |
+
+共用逻辑抽取为 `useProfile` composable（头像/昵称/邮箱/密码），用户端和管理端复用。
 
 ### API `api/user.ts`
 
@@ -512,7 +542,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 
 ### Mock
 
-用户端首页 mock 会为当前请求用户自动补最近 4 天的情绪记录，保证"本周统计"卡片不空。聊天 mock 在内存中维护会话和消息，支持新建会话、发送消息、AI 延迟回复，dev server 重启后重置。
+用户端首页 mock 会为当前请求用户自动补最近 4 天的情绪记录，保证"本周统计"卡片不空。聊天接口已迁至真实后端（`server/src/routes/chat.ts`），不再走 mock。
 
 ---
 
@@ -523,8 +553,10 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/auth/login` | POST | ✅ 真实后端（MySQL 查用户 + bcrypt + JWT） |
 | `/api/auth/register` | POST | ✅ 真实后端（MySQL 写入 + 用户名去重） |
 | `/api/auth/me` | GET | ✅ 真实后端（JWT 验证 + 返回用户信息） |
-| `/api/auth/profile` | PUT | ✅ 真实后端（需登录，更新昵称/头像） |
+| `/api/auth/profile` | PUT | ✅ 真实后端（需登录，更新昵称/头像/邮箱） |
 | `/api/auth/password` | PUT | ✅ 真实后端（需登录，旧密码比对 + 更新） |
+| `/api/auth/forgot-password` | POST | ✅ 真实后端（nodemailer 发送 6 位验证码，60s 冷却） |
+| `/api/auth/reset-password` | POST | ✅ 真实后端（验证码 + 新密码，令牌一次性使用） |
 | `/api/knowledge/articles` | GET | ✅ 真实后端（分页 + title/category/status 筛选） |
 | `/api/knowledge/articles` | POST | ✅ 真实后端（admin 鉴权 + JSON Schema 校验） |
 | `/api/knowledge/articles/suggestions` | GET | ✅ 真实后端（title 模糊联想，最多 10 条） |
@@ -540,60 +572,60 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/emotional/records/:id` | DELETE | ✅ 真实后端（admin 鉴权，ID 正整数校验） |
 | `/api/dashboard` | GET | ✅ 真实后端（admin 鉴权，聚合 User/MoodRecord/ChatSession） |
 | `/api/user/home` | GET | ✅ 真实后端（聚合 MoodRecord + ChatSession） |
-| `/api/user/chat/sessions` | GET | ⚠️ mock |
-| `/api/user/chat/sessions/:id` | GET | ⚠️ mock |
-| `/api/user/chat/send` | POST | ⚠️ mock（随机回复，与用户输入无关） |
+| `/api/user/chat/sessions` | GET | ✅ 真实后端（JWT 认证，置顶优先排序，含 pinned 字段） |
+| `/api/user/chat/sessions/:id` | GET | ✅ 真实后端（归属权校验，完整消息列表） |
+| `/api/user/chat/send` | POST | ✅ 真实后端（SSE 流式 + DeepSeek V4 Pro + 深度思考 + 历史上下文 20 条） |
+| `/api/user/chat/sessions/:id` | PUT | ✅ 真实后端（重命名会话，上限 200 字符） |
+| `/api/user/chat/sessions/:id/pin` | PUT | ✅ 真实后端（切换置顶，返回新状态） |
+| `/api/user/chat/sessions/:id` | DELETE | ✅ 真实后端（归属权校验，级联删除消息） |
 | `/api/user/mood` | POST | ✅ 真实后端（JSON Schema 校验 + 创建记录） |
 | `/api/user/mood` | GET | ✅ 真实后端（分页 + userId 筛选 + moodLabel 筛选） |
 | `/api/user/mood/:id` | GET | ✅ 真实后端（返回全量字段含睡眠/压力/触发因素） |
 | `/api/user/mood/:id` | DELETE | ✅ 真实后端（ID 正整数校验 + 存在性检查） |
 
-> ✅ = 真实后端  ⚠️ = 仍在 vite.config.ts mock 插件中
+> ✅ = 真实后端（全部已完成，mock 插件可安全删除）
 
 ---
 
 ## 接下来要做的事
 
-### 🔴 第一优先级：逐步迁移 mock → 真实后端
+### ✅ 基础建设 —— 已全部完成
 
-vite.config.ts 中仅剩 chat 模块的 3 个 mock handler（/api/user/chat/*）。其余所有接口均已迁至真实后端。
-按顺序逐个迁移到 `server/src/routes/`：
+- **全部接口迁移至真实后端**：vite.config.ts mock 插件已删除，所有 `/api/*` 由 Fastify 后端处理
+- **聊天核心链路**：SSE 流式 + DeepSeek V4 Pro + 深度思考 + 历史上下文 20 条
+- **会话管理**：重命名 / 置顶 / 删除，左侧列表排序（置顶优先）
+- **代码架构**：System Prompt 抽至 `server/src/prompts/system.ts`，`resolveSession` helper 消除路由重复代码
 
-| 顺序 | 模块 | 涉及表 | 需新增路由文件 | 状态 |
-|------|------|--------|---------------|------|
-| 1 | 知识文章 CRUD | Article | `server/src/routes/knowledge.ts` | ✅ 已完成 |
-| 2 | 心情记录 | MoodRecord | `server/src/routes/mood.ts` | ✅ 已完成 |
-| 3 | 用户首页 | User/MoodRecord/ChatSession | `server/src/routes/home.ts` | ✅ 已完成 |
-| 4 | 聊天会话 & 消息 | ChatSession/ChatMessage | `server/src/routes/chat.ts` | ❌ **最后一个** |
-| 5 | 咨询记录（管理端） | ChatSession/ChatMessage | `server/src/routes/consultations.ts` | ✅ 已完成 |
-| 6 | 情绪日志（管理端） | MoodRecord | `server/src/routes/emotional.ts` | ✅ 已完成 |
-| 7 | 仪表盘数据 | 聚合查询 | `server/src/routes/dashboard.ts` | ✅ 已完成 |
-| 8 | 文件上传 | 文件存储 | `server/src/routes/file.ts` | ✅ 已完成 |
+---
 
-每迁移一个模块，就删除 `vite.config.ts` 中对应的 mock handler。
-chat 迁移完成后，删除整个 mock 插件。
+### 🥇 第一梯队：AI 对话体验提升
 
-### 🔴 第二优先级：AI 对话接入 Claude API
+| # | 功能 | 说明 | 改动范围 |
+|---|------|------|---------|
+| 1 | **用户信息注入** | 调用 `buildSystemPrompt()` 把用户昵称、近期情绪趋势注入 System Prompt，让 AI 叫得出用户名字、知道当前状态 | `chat.ts` POST /send |
+| 2 | **知识库文章注入**（轻量 RAG） | 用户消息关键词匹配 Article 表 → 文章摘要拼入 prompt，AI 回复有知识库支撑 | `chat.ts` + SQL `LIKE` |
 
-`userChat.vue` 当前 mock 回复为随机预设文案，与用户输入无关。
-需在 `server/src/routes/chat.ts` 中接入 Claude API：
+两项均**不需要新依赖**。
 
-- 安装 `@anthropic-ai/sdk`
-- 编写 System Prompt（定义 AI 为"宁渡"心理健康助手）
-- 支持流式 SSE 响应（打字机效果）
-- 方案演进：直调 LLM → 注入知识库文章 → 接入工具调用（查情绪历史等）
+---
 
-详见 CLAUDE.md 末尾"AI 对话方案"章节。
+### 🥈 第二梯队：功能完善
 
-### 🟡 第三优先级：功能完善
+| # | 功能 | 说明 |
+|---|------|------|
+| 3 | **对话自动摘要** | 会话关闭时 AI 生成 50 字摘要存 `ChatSession.summary` 字段 |
+| 4 | **危机标记** | AI 检测到高风险语言时 `ChatMessage.flagged = true`，管理端可预警 |
+| 5 | **AI 情绪分析** | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
 
-| 模块 | 内容 |
-|------|------|
-| 个人中心 | `userProfile.vue` 完整实现（编辑资料、修改密码）✅ 已完成 |
-| 管理端个人中心 | admin 布局顶栏的头像下拉 → 个人中心页 ✅ 已完成（adminProfile.vue + useProfile composable） |
-| 默认页重定向 | admin 登录后默认跳转 `/back/dashboard`（导航守卫 + 路由 redirect + 登录页按钮三处统一）✅ 已完成 |
-| AI 情绪分析 | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
-| adminLayout 背景 | 去掉 content-container 白底，统一 #fff 背景 + 卡片阴影边框 ✅ 已完成 |
+---
+
+### 🥉 第三梯队：大工程
+
+| # | 功能 | 说明 |
+|---|------|------|
+| 6 | **语音输入/输出** | TTS + STT，对情绪宣泄场景非常有用 |
+| 7 | **心情记录联动** | 聊完天后 AI 主动问"要不要记录一下现在的心情？" |
+| 8 | **多轮长期记忆** | 跨会话记住用户关键信息（偏好、宠物名字、重要事件等） |
 
 ---
 
@@ -625,6 +657,16 @@ chat 迁移完成后，删除整个 mock 插件。
 - **userMood 详情弹窗**：报错保留弹窗不闪关，用户可重试
 - **userHome formatTime**：加空值保护
 - **login 返回首页**：从 admin `knowledge` 改为公开 `userArticles`
+- **邮箱支持**：User 模型 + email 字段，登录支持用户名/邮箱双模式，注册邮箱必填，忘记密码通过邮箱发送 6 位验证码
+- **忘记密码**：新建 `forgotPassword.vue`，nodemailer 发 6 位验证码，60s 前后端双重冷却，bcrypt 哈希存储一次性令牌
+- **个人中心邮箱编辑**：`useProfile` 新增邮箱编辑逻辑，`userProfile.vue` / `adminProfile.vue` 同步展示和编辑
+- **注册昵称 bug**：修复注册时昵称被 username 覆盖的问题（`nickname: username` → `nickname: nickname?.trim() \|\| username`）
+- **login 页面清理**：删除登录页"返回首页"按钮，注册页/忘记密码页统一改为"返回登录"
+- **login 输入保留**：离开登录页去忘记密码时用 sessionStorage 保留已输入内容，回来后自动填入
+- **聊天模块迁移**：chat 3 个接口从 mock → 真实后端 `server/src/routes/chat.ts`，前端 `sendMessageStream` 实现 SSE 流式解析
+- **AI 对话接入**：对接 DeepSeek API（`deepseek-chat` 模型），System Prompt 定义"宁渡"角色，SSE 流式打字机效果，30s 超时保护
+- **chat.ts 删除会话**：新增 `DELETE /api/user/chat/sessions/:id`，归属权校验 + 级联删除消息
+- **userChat.vue 流式完善**：`sendMessageStream` 替代原 mock 延迟回复，支持 meta/chunk/done/error 四事件，乐观更新 + 打字机实时渲染
 
 ---
 
@@ -657,47 +699,67 @@ chat 迁移完成后，删除整个 mock 插件。
 ### 整体架构
 
 ```
-浏览器 → Vue 前端 → server/src/routes/chat.ts → Claude API
-                         ↓
-                    Prisma → MySQL（会话/消息持久化）
+浏览器 → Vue 前端（userChat.vue）→ api/user.ts（sendMessageStream / fetch SSE）
+                                        ↓
+                        server/src/routes/chat.ts（路由编排层）
+                           ├── JWT 认证 + 会话管理
+                           ├── 委托 ai/context.ts 拼装 prompt
+                           └── 委托 ai/client.ts 调 DeepSeek
+
+server/src/ai/                        ← AI 核心模块
+├── client.ts            纯 API 调用：拼请求 → 调 DeepSeek V4 Pro → 解析 SSE
+├── context.ts           上下文拼装：System Prompt + 历史 + 知识库（扩展点）
+├── safety.ts            安全检测：危机关键词识别（扩展点）
+└── prompts/
+    └── system.ts        System Prompt + buildSystemPrompt()
 ```
 
-### 方案一：直调 LLM（起步）
+### 分层职责
 
-在 `server/src/routes/chat.ts` 中，`POST /api/user/chat/send` 接到消息后：
+| 层 | 文件 | 职责 | 修改频率 |
+|----|------|------|---------|
+| API 客户端 | `ai/client.ts` | HTTP 请求、SSE 解析、超时控制 | 几乎不改 |
+| 上下文 | `ai/context.ts` | 拼装 messages[]，注入用户信息/知识库 | **功能升级主要改这里** |
+| 安全 | `ai/safety.ts` | 危机检测、内容过滤 | 按需补充关键词 |
+| Prompt | `ai/prompts/system.ts` | AI 人设文案 | 调风格时改 |
+| 路由 | `routes/chat.ts` | JWT → 校验 → 委托 → SSE → 落库 | 加新接口时改 |
+| 前端 API | `src/api/user.ts` | `sendMessageStream()` + CRUD 函数 | 加接口时改 |
+| 前端 UI | `src/views/user-page/userChat.vue` | 流式气泡、会话管理 | 改交互时改 |
 
-1. 从 MySQL 读取当前会话的历史消息
-2. 拼装 System Prompt（定义 AI 为"宁渡"心理健康助手，温暖共情风格）
-3. 调用 `@anthropic-ai/sdk`，流式 SSE 返回
-4. 消息落库保存
+### 方案一：直调 LLM + 深度思考 ✅ 已实现
 
-**新增依赖**：`@anthropic-ai/sdk`
-**前端改动**：无（API 路径不变，只是 mock → 真实 AI）
+`POST /api/user/chat/send` 完整流程：
 
-### 方案二：+ 知识库注入
+1. JWT 认证 → 确定 / 创建会话 → 保存用户消息到 `ChatMessage` 表
+2. 查询最近 20 条历史消息 → 委托 `ai/context.ts` 拼装完整 `messages[]`
+3. 委托 `ai/client.ts` 调 DeepSeek V4 Pro（`stream: true` + `thinking: enabled` + `reasoning_effort: medium`）
+4. SSE 流式推送：`event: meta` → `event: chunk`（逐字）→ `event: done` → `event: error`
+5. 保存 AI 回复到 MySQL，首条用户消息自动设为会话标题
 
-在方案一的基础上，用关键词匹配将已有的知识文章片段注入 prompt：
+**模型参数**：`temperature: 0.7` / `max_tokens: 800` / `top_p: 0.9`
 
-```
-用户消息 → 匹配相关文章标题/标签 → 拼入 System Prompt → LLM 生成
-```
+**深度思考**：默认开启，模型在后台推理（reasoning_content 不展示给用户），提升共情质量和安全判断。通过 `deepThinking: boolean` 可切换。
 
-不上向量数据库，直接用 MySQL `LIKE` 或全文索引做关键词匹配。
+### 方案二：+ 用户信息注入（下一步）
 
-### 方案三：+ Agent 工具调用
+调用 `buildSystemPrompt({ nickname, recentMood, recentIssues })` → 注入 System Prompt。
+已有扩展点：`ai/context.ts` 的 `BuildContextInput.userContext`。
+
+### 方案三：+ 知识库注入（下一步）
+
+关键词匹配 Article 表 → 文章摘要注入 prompt → AI 回答有知识库支撑。
+
+### 方案四：+ Agent 工具调用
 
 给 AI 配 Function Calling / Tool Use：
-
 - `getMoodHistory(days)` → 查用户近期情绪趋势
 - `searchKnowledge(query)` → 搜知识库
 - `suggestExercise(type)` → 推荐呼吸法/正念练习
 
-AI 能"看到"用户的历史情绪数据，给出个性化建议。
-
 ### 分步实施建议
 
-1. 先完成所有 CRUD 接口迁移（mock → 真实后端），会话和消息能持久化
-2. 再接 Claude API（方案一），保证基础对话流畅
+1. ✅ 所有 CRUD 接口迁移完成，会话和消息已持久化
+2. ✅ DeepSeek API 已接入（方案一），基础对话流畅
 3. 效果满意后按需升级到方案二/三
 
 ---

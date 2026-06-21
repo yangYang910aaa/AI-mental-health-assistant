@@ -45,6 +45,7 @@ model ChatSession {
   id        Int       @id @default(autoincrement())
   userId    Int
   title     String    @db.VarChar(200)
+  pinned    Boolean   @default(false)
   createdAt DateTime  @default(now())
 
   user     User          @relation(fields: [userId], references: [id])
