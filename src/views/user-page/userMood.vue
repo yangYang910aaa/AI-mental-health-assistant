@@ -194,6 +194,29 @@
             </div>
             <p class="content-text">{{ detailRecord.content }}</p>
           </div>
+
+          <!-- ===== AI 分析结果 ===== -->
+          <div class="ai-section" v-if="detailRecord.aiAnalysis?.primaryEmotion">
+            <div class="ai-section-title">小助手分析</div>
+            <div class="ai-analysis-grid">
+              <span class="ai-tag" :style="{ background: analysisRiskColor(detailRecord.aiAnalysis.riskLevel) }">
+                {{ detailRecord.aiAnalysis.primaryEmotion }}
+              </span>
+              <span class="ai-tag secondary">强度 {{ detailRecord.aiAnalysis.emotionIntensity }}/10</span>
+              <span class="ai-tag secondary">{{ detailRecord.aiAnalysis.emotionNature }}</span>
+              <span class="ai-tag secondary">风险 {{ detailRecord.aiAnalysis.riskLevel }}</span>
+            </div>
+            <div class="ai-suggestion" v-if="detailRecord.aiSuggestion?.advice">
+              <div class="suggestion-block" v-if="detailRecord.aiSuggestion.riskDescription">
+                <span class="suggestion-label">📋 风险描述</span>
+                <p>{{ detailRecord.aiSuggestion.riskDescription }}</p>
+              </div>
+              <div class="suggestion-block advice" v-if="detailRecord.aiSuggestion.advice">
+                <span class="suggestion-label">💡 专业建议</span>
+                <p>{{ detailRecord.aiSuggestion.advice }}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </el-dialog>
   </div>
@@ -236,6 +259,13 @@ const filterTriggers = (queryString: string, cb: (results: Array<{ value: string
 
 // 情绪标签颜色映射
 const labelColor = (label: string) => MOOD_LABEL_COLORS[label] || '#8b9e7e'
+
+/** AI 风险等级 → 背景色 */
+const analysisRiskColor = (level: string) => {
+  if (level === '高') return '#fde8e8'
+  if (level === '中') return '#fef3d6'
+  return '#e8f5e9'
+}
 
 
 // ==================== 历史列表 ====================
@@ -687,4 +717,73 @@ onMounted(() => loadHistory())
     white-space: pre-wrap;
   }
 }
+  // ===== AI 分析区域 =====
+  .ai-section {
+    background: linear-gradient(135deg, #faf9fc 0%, #f5f3fa 100%);
+    border: 1px solid #e8e4f0;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 16px;
+
+    .ai-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #5e4a8a;
+      margin-bottom: 14px;
+    }
+
+    .ai-analysis-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+
+      .ai-tag {
+        padding: 4px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #5e4a8a;
+        background: #ede9f6;
+
+        &.secondary {
+          background: #f5f3fa;
+          color: #8b7eaa;
+          font-weight: 400;
+        }
+      }
+    }
+
+    .ai-suggestion {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      .suggestion-block {
+        background: #fff;
+        border-radius: 10px;
+        padding: 12px 14px;
+
+        &.advice {
+          border-left: 3px solid #8b9e7e;
+        }
+
+        .suggestion-label {
+          font-size: 12px;
+          color: #9088a8;
+          display: block;
+          margin-bottom: 4px;
+        }
+
+        p {
+          margin: 0;
+          font-size: 13px;
+          color: #4a4360;
+          line-height: 1.7;
+        }
+      }
+    }
+  }
+
+
 </style>

@@ -208,12 +208,26 @@ export interface UserMoodItem {
   createdAt: string
 }
 
+export interface MoodAnalysis {
+  primaryEmotion: string
+  emotionIntensity: number
+  riskLevel: string
+  emotionNature: string
+}
+
+export interface MoodSuggestion {
+  riskDescription: string
+  advice: string
+}
+
 /** 心情记录详情（含完整字段） */
 export interface UserMoodDetail extends UserMoodItem {
   userId: number
   moodTrigger: string
   sleepDuration: number
   pressureLevel: number
+  aiAnalysis: MoodAnalysis
+  aiSuggestion: MoodSuggestion
 }
 
 /** 用户心情记录列表 */
