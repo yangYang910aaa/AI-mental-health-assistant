@@ -128,6 +128,7 @@ onMounted(() => loadArticle())
 
     .article-tags {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 14px;
       padding-top: 14px;

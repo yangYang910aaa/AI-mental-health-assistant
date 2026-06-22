@@ -5,7 +5,11 @@ import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 
 // 序列化文章：Date → 字符串
-const serialize = (a: any) => ({ ...a, createdAt: a.createdAt instanceof Date ? formatDateTime(a.createdAt) : a.createdAt })
+const serialize = (a: any) => ({
+  ...a,
+  tags: typeof a.tags === 'string' ? (() => { try { return JSON.parse(a.tags) } catch { return a.tags } })() : (a.tags ?? []),
+  createdAt: a.createdAt instanceof Date ? formatDateTime(a.createdAt) : a.createdAt,
+})
 
 // ==================== JSON Schema 校验 ====================
 

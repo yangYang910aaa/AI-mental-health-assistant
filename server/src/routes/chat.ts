@@ -8,7 +8,7 @@ import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 import { streamChat } from '../ai/client.js'
-import { buildContext } from '../ai/context.js'
+import { buildContext, extractKeywords } from '../ai/context.js'
 
 // ==================== SSE 辅助 ====================
 
@@ -148,20 +148,94 @@ export async function chatRoutes(app: FastifyInstance) {
       data: { sessionId, sender: 'user', content },
     })
 
-    // ===== 3. 取历史 → 拼装上下文 → 委托 AI =====
-    // 排除刚刚存进去的这条，按时间降序取最近 20 条
-    const recent = await prisma.chatMessage.findMany({
-      where: { sessionId, id: { not: userMsg.id } },
-      orderBy: { createdAt: 'desc' }, take: 20,
-      select: { sender: true, content: true },
-    })
-    // 反转成正序（AI 需要从旧到新处理）
+    // ===== 3. 查询用户信息 + 近期心情 + 知识库 + 历史 → 拼装上下文 =====
+
+    // 3a. 提取关键词
+    const keywords = extractKeywords(content)
+
+    // 3b. 并行查询四路数据
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const [user, recentMoods, recent, articles] = await Promise.all([
+      // ① 用户昵称
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { nickname: true, username: true },
+      }),
+      // ② 近 7 天心情记录
+      prisma.moodRecord.findMany({
+        where: { userId, createdAt: { gte: sevenDaysAgo } },
+        orderBy: { createdAt: 'desc' },
+        select: { moodLabel: true, moodScore: true, content: true },
+      }),
+      // ③ 历史消息（排除刚存的这条）
+      prisma.chatMessage.findMany({
+        where: { sessionId, id: { not: userMsg.id } },
+        orderBy: { createdAt: 'desc' }, take: 20,
+        select: { sender: true, content: true },
+      }),
+      // ④ 知识库文章匹配（关键词为空时跳过）
+      keywords.length > 0
+        ? prisma.article.findMany({
+            where: {
+              status: 'published',
+              OR: keywords.flatMap((kw) => [
+                { title: { contains: kw } },
+                { summary: { contains: kw } },
+              ]),
+            },
+            select: { title: true, summary: true, category: true },
+            take: 3,
+          })
+        : Promise.resolve([] as Array<{ title: string; summary: string | null; category: string }>),
+    ])
+
+    // 3c. 构造用户上下文
+    const userContext: { nickname?: string; recentMood?: string; recentIssues?: string } = {}
+    const displayName = user?.nickname || user?.username || '用户'
+
+    userContext.nickname = displayName
+
+    if (recentMoods.length > 0) {
+      const scores = recentMoods.map((m) => m.moodScore)
+      const minScore = Math.min(...scores)
+      const maxScore = Math.max(...scores)
+      // 统计出现最多的情绪标签
+      const labelCounts = new Map<string, number>()
+      for (const m of recentMoods) {
+        labelCounts.set(m.moodLabel, (labelCounts.get(m.moodLabel) || 0) + 1)
+      }
+      const topLabel = [...labelCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+
+      userContext.recentMood =
+        `最近 7 天记录了 ${recentMoods.length} 次心情，` +
+        `评分范围 ${minScore}~${maxScore} 分，` +
+        `主要为「${topLabel}」情绪`
+
+      // 取最近一条有记录内容的心情
+      const latestWithContent = recentMoods.find((m) => m.content)
+      if (latestWithContent?.content) {
+        userContext.recentIssues = `最近一次记录中提到：${latestWithContent.content.slice(0, 80)}`
+      }
+    } else {
+      userContext.recentMood = '本周还没有心情记录'
+    }
+
+    // 3d. 构造知识库片段
+    const knowledgeSnippets = articles
+      .filter((a) => a.summary)
+      .map((a) => `《${a.title}》[${a.category}]：${a.summary}`)
+
+    // 3e. 反转历史为正序，组装完整 prompt
     const history = recent.reverse().map((m) => ({
       sender: m.sender, content: m.content,
     }))
 
-    // 委托 ai/context.ts 拼装完整 prompt 数组
-    const messages = buildContext({ userMessage: content, history })
+    const messages = buildContext({
+      userMessage: content,
+      history,
+      userContext,
+      knowledgeSnippets: knowledgeSnippets.length > 0 ? knowledgeSnippets : undefined,
+    })
 
     // ===== 4. 切换到 SSE 模式 =====
     const rawReply = reply.raw
