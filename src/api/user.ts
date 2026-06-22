@@ -251,3 +251,24 @@ export const getUserMoodDetail = (id: number) =>
 /** 删除心情记录 */
 export const deleteMood = (id: number) =>
   request.delete<void>('/user/mood/' + id)
+
+// ==================== 长期记忆 ====================
+
+export interface MemoryItem {
+  id: number
+  content: string
+  category: string | null
+  createdAt: string
+}
+
+/** 获取记忆列表 */
+export const getMemories = () =>
+  request.get<MemoryItem[]>('/user/memories')
+
+/** 删除单条记忆 */
+export const deleteMemory = (id: number) =>
+  request.delete<void>('/user/memories/' + id)
+
+/** 清空全部记忆 */
+export const clearMemories = () =>
+  request.delete<void>('/user/memories')

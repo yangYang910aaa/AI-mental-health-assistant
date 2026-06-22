@@ -18,6 +18,7 @@ export const ROUTE_NAMES = {
   userArticles: 'userArticles',
   userArticleDetail: 'userArticleDetail',
   userProfile: 'userProfile',
+  userMemory: 'userMemory',
   // 认证路由
   authLayout: 'authLayout',
   login: 'login',
@@ -114,6 +115,12 @@ const router = createRouter({
           name: ROUTE_NAMES.userProfile,
           component: () => import('@/views/user-page/userProfile.vue'),
           meta: { title: '个人中心' },
+        },
+        {
+          path: 'memory',
+          name: ROUTE_NAMES.userMemory,
+          component: () => import('@/views/user-page/userMemory.vue'),
+          meta: { title: '记忆管理' },
         },
       ],
     },

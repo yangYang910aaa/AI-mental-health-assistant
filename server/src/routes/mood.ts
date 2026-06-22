@@ -107,7 +107,7 @@ const analyzeMoodAsync = (recordId: number, data: {
       })
     })
     .catch((err: Error) => {
-      console.error('[Mood] AI 分析失败:', err.me ssage)
+      console.error('[Mood] AI 分析失败:', err.message)
     })
 }
 

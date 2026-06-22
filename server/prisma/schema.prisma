@@ -21,6 +21,7 @@ model User {
 
   moods          MoodRecord[]
   chatSessions   ChatSession[]
+  memories       Memory[]
 }
 
 // ==================== 心情记录 ====================
@@ -36,6 +37,17 @@ model MoodRecord {
   aiAnalysis     Json?
   aiSuggestion   Json?
   createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ==================== 长期记忆 ====================
+model Memory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  content   String   @db.VarChar(500)
+  category  String?  @db.VarChar(50)
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 }

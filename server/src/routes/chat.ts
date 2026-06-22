@@ -10,6 +10,7 @@ import { parseId } from '../utils/validate.js'
 import { streamChat } from '../ai/client.js'
 import { buildContext, extractKeywords } from '../ai/context.js'
 import { checkCrisis } from '../ai/safety.js'
+import { getMemoryContext, extractMemories, saveMemories } from '../ai/memory.js'
 
 // ==================== SSE 辅助 ====================
 
@@ -234,16 +235,20 @@ export async function chatRoutes(app: FastifyInstance) {
       .filter((a) => a.summary)
       .map((a) => `《${a.title}》[${a.category}]：${a.summary}`)
 
-    // 3e. 反转历史为正序，组装完整 prompt
+    // 3e. 取长期记忆 + 反转历史
+    const memoryContext = await getMemoryContext(userId)
+
     const history = recent.reverse().map((m) => ({
       sender: m.sender, content: m.content,
     }))
 
+    // 3f. 组装完整 prompt
     const messages = buildContext({
       userMessage: content,
       history,
       userContext,
       knowledgeSnippets: knowledgeSnippets.length > 0 ? knowledgeSnippets : undefined,
+      memoryContext,
     })
 
     // ===== 4. 切换到 SSE 模式 =====
@@ -265,9 +270,10 @@ export async function chatRoutes(app: FastifyInstance) {
     })
 
     // ===== 5. 流式生成 =====
+    let aiContent = ''      // 外层声明，供记忆提取使用
     try {
       // 每收到一小段文字，就通过 SSE chunk 事件推给前端，追加到 AI 气泡末尾
-      const aiContent = await streamChat(messages, {
+      aiContent = await streamChat(messages, {
         onChunk: (delta) => sse(rawReply, 'chunk', { content: delta }),
       }, deepThinking ?? false)
 
@@ -300,6 +306,20 @@ export async function chatRoutes(app: FastifyInstance) {
     }
 
     rawReply.end()   // 关闭 SSE 连接
+
+    // 异步提取长期记忆（取本轮用户消息 + AI 回复，不阻塞响应）
+    if (aiContent) {
+      const recentForMemory = history
+        .slice(-6)
+        .map((m: { sender: string; content: string }) => ({
+          sender: m.sender, content: m.content,
+        }))
+      recentForMemory.push({ sender: 'user', content })
+      recentForMemory.push({ sender: 'assistant', content: aiContent })
+      extractMemories(recentForMemory.filter((m) => m.content))
+        .then((items) => saveMemories(userId, items))
+        .catch((e: Error) => console.error('[Chat] 记忆提取失败:', e.message))
+    }
   })
 
   // ========== PUT /api/user/chat/sessions/:id —— 重命名 ==========

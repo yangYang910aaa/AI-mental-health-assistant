@@ -78,8 +78,10 @@ export interface BuildContextInput {
     recentMood?: string
     recentIssues?: string
   }
-  /** 🥈 扩展点：匹配到的知识库文章摘要 */
+  /** 知识库文章摘要 */
   knowledgeSnippets?: string[]
+  /** 长期记忆文本——直接拼入 System Prompt */
+  memoryContext?: string | null
 }
 
 /**
@@ -91,8 +93,11 @@ export interface BuildContextInput {
  *   + 可选的知识库片段
  */
 export function buildContext(input: BuildContextInput): LlmMessage[] {
-  // 1. System Prompt（基础人设 ± 用户信息）
-  const systemPrompt = buildSystemPrompt(input.userContext)
+  // 1. System Prompt（基础人设 + 用户信息 + 长期记忆）
+  let systemPrompt = buildSystemPrompt(input.userContext)
+  if (input.memoryContext) {
+    systemPrompt += '\n\n' + input.memoryContext
+  }
 
   const messages: LlmMessage[] = [
     { role: 'system', content: systemPrompt },

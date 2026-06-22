@@ -31,7 +31,8 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-            <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+            <el-dropdown-item command="memory">记忆管理</el-dropdown-item>
+            <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -78,6 +79,9 @@ const handleCommand = (command: string) => {
   }
   if (command === 'profile') {
     router.push({ name: ROUTE_NAMES.userProfile })
+  }
+  if (command === 'memory') {
+    router.push({ name: ROUTE_NAMES.userMemory })
   }
 }
 </script>
