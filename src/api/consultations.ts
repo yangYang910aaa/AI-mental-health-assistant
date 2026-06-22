@@ -8,6 +8,7 @@ export interface Message {
   sender: 'user' | 'assistant'
   content: string
   time: string
+  flagged?: boolean
 }
 
 /** 咨询记录 */
@@ -19,6 +20,7 @@ export interface Consultation {
   firstMessage: string        //用户发起的首条消息
   lastMessageTime: string     // 对话记录的结束时间
   messageCount: number
+  hasWarning?: boolean        // 是否包含危机消息
   startedAt: string           // 咨询时间（单独一列）
   messages?: Message[]        // 对话详情（仅详情接口返回）
 }

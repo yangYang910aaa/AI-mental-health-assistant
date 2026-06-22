@@ -78,10 +78,12 @@
           :class="msg.sender === 'user' ? 'user-bubble' : 'ai-bubble'"
         >
           <div class="bubble-avatar">
-            <el-avatar v-if="msg.sender === 'assistant'" :size="32" src="">
+            <el-avatar v-if="msg.sender === 'assistant'" :size="32" class="ai-avatar">
               <el-icon><Sunrise /></el-icon>
             </el-avatar>
-            <el-avatar v-else :size="32">{{ userStore.displayName?.charAt(0) || '我' }}</el-avatar>
+            <el-avatar v-else :size="32" :src="userStore.userInfo?.avatar || ''">
+              {{ userStore.displayName?.charAt(0) || '我' }}
+            </el-avatar>
           </div>
           <div class="bubble-content">
             <div class="bubble-text">{{ msg.content }}</div>
@@ -556,6 +558,12 @@ watch(activeSessionId, () => scrollToBottom())
     }
 
     .bubble-avatar { flex-shrink: 0; }
+
+    .ai-avatar {
+      background: linear-gradient(135deg, #f9d56e, #f5a623);
+      color: #fff;
+      :deep(.el-icon) { font-size: 18px; }
+    }
 
     .bubble-content {
       display: flex;

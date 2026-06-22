@@ -1,8 +1,7 @@
 /**
  * AI 上下文拼装 —— 负责构建发给 LLM 的完整 messages 数组。
- * 当前只做 System Prompt + 历史消息拼装。
- * 🥇 下一步扩展点：注入用户信息（昵称、近期情绪）
- * 🥈 再下一步：注入知识库文章摘要
+ * 拼装顺序：System Prompt（含用户信息）→ 历史消息 → 知识库片段 → 当前用户消息。
+ * 同时提供关键词提取（extractKeywords），供 chat.ts 做轻量 RAG 知识库匹配。
  */
 
 import type { LlmMessage } from './client.js'
@@ -73,7 +72,7 @@ export function formatHistory(
 export interface BuildContextInput {
   userMessage: string
   history: Array<{ sender: string; content: string }>
-  /** 🥇 扩展点：当前用户信息，传了就注入 prompt */
+  /** 扩展点：当前用户信息，传了就注入 prompt */
   userContext?: {
     nickname?: string
     recentMood?: string
@@ -102,7 +101,7 @@ export function buildContext(input: BuildContextInput): LlmMessage[] {
   // 2. 历史对话
   messages.push(...formatHistory(input.history))
 
-  // 3. 🥈 知识库片段：拼在用户消息前，作为上下文提示
+  // 3. 知识库片段：拼在用户消息前，作为上下文提示
   if (input.knowledgeSnippets && input.knowledgeSnippets.length > 0) {
     const snippets = input.knowledgeSnippets
       .map((s, i) => `${i + 1}. ${s}`)

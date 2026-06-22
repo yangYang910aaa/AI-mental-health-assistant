@@ -58,6 +58,7 @@ model ChatMessage {
   sessionId Int
   sender    String    @db.VarChar(20)  // "user" | "assistant"
   content   String    @db.Text
+  flagged   Boolean   @default(false)
   createdAt DateTime  @default(now())
 
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

@@ -49,7 +49,10 @@
             {{ props.detailRow?.userNickName?.charAt(0) }}
           </el-avatar>
           <div class="msg-body">
-            <div class="msg-sender">{{ props.detailRow?.userNickName }}</div>
+            <div class="msg-sender">
+              {{ props.detailRow?.userNickName }}
+              <span v-if="msg.flagged" class="crisis-tag">⚠ 危机预警</span>
+            </div>
             <div class="msg-bubble">{{ msg.content }}</div>
             <div class="msg-time">{{ msg.time }}</div>
           </div>
@@ -197,6 +200,19 @@ const detailDialogVisible = computed({
         border-top-right-radius: 4px;
       }
     }
+  }
+
+  // 危机预警标签
+  .crisis-tag {
+    display: inline-block;
+    background: #fef0f0;
+    border: 1px solid #fbc4c4;
+    color: #e84747;
+    border-radius: 4px;
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 6px;
   }
 }
 

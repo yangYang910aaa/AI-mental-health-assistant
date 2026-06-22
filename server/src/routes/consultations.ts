@@ -1,3 +1,7 @@
+/**
+ * 咨询记录路由 —— 管理端查看用户与 AI 的对话历史。
+ * 仅 admin 角色可访问，提供列表 / 详情 / 删除三个接口。
+ */
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
@@ -8,7 +12,7 @@ import { parseId } from '../utils/validate.js'
 
 export async function consultationsRoutes(app: FastifyInstance) {
 
-  // ========== 咨询记录列表 /api/consultations/records —— 列表（需 admin） ==========
+  // ========== GET /api/consultations/records —— 列表（admin，分页） ==========
   app.get('/api/consultations/records', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
@@ -24,6 +28,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
     const page = Math.max(Number(pageStr) || 1, 1)
     const pageSize = Math.min(Math.max(Number(pageSizeStr) || 10, 1), 100)
 
+    // 查会话主表 + 用户昵称 + 最新一条消息时间
     const [sessions, total] = await Promise.all([
       prisma.chatSession.findMany({
         include: {
@@ -31,30 +36,52 @@ export async function consultationsRoutes(app: FastifyInstance) {
           _count: { select: { messages: true } },
           messages: {
             orderBy: { createdAt: 'desc' },
-            take: 1,
+            take: 1,                                       // 只取最后一条，用于列表时间展示
             select: { createdAt: true },
           },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { id: 'desc' },
+        orderBy: { id: 'desc' },                           // 最新会话在前
       }),
       prisma.chatSession.count(),
     ])
 
-    // 批量取首条用户消息（每个会话一条）
+    // 批量取首条用户消息（每个会话一条）+ 危机标记统计
+    // 不走 N+1 查询，一次 in 批量取，再用 Map 映射回各自会话
     const sessionIds = sessions.map((s) => s.id)
-    const firstMsgs = sessionIds.length > 0
-      ? await prisma.chatMessage.findMany({
-          where: { sessionId: { in: sessionIds }, sender: 'user' },
-          orderBy: { createdAt: 'asc' },
-          distinct: ['sessionId'],
-          select: { sessionId: true, content: true },
-        })
-      : []
+    const [firstMsgs, flaggedCounts] = await Promise.all([
+      sessionIds.length > 0
+        ? prisma.chatMessage.findMany({
+            where: { sessionId: { in: sessionIds }, sender: 'user' },
+            orderBy: { createdAt: 'asc' },
+            distinct: ['sessionId'],                       // 每个会话只取首条用户消息
+            select: { sessionId: true, content: true },
+          })
+        : [] as Array<{ sessionId: number; content: string | null }>,
+      sessionIds.length > 0
+        ? prisma.chatMessage.groupBy({
+            by: ['sessionId'],
+            where: { sessionId: { in: sessionIds }, flagged: true },
+            _count: { sessionId: true },                   // 统计每个会话的危机消息数
+          })
+        : [] as Array<{ sessionId: number; _count: { sessionId: number } }>,
+    ])
 
-    const firstMsgMap = new Map(firstMsgs.map((m) => [m.sessionId, m.content]))
+    // sessionId → 首条用户消息内容
+    const firstMsgMap = new Map(
+      firstMsgs.map((m: { sessionId: number; content: string | null }) =>
+        [m.sessionId, m.content] as const,
+      ),
+    )
+    // sessionId → 危机消息数量（>0 即 hasWarning）
+    const flaggedMap = new Map(
+      flaggedCounts.map((f: { sessionId: number; _count: { sessionId: number } }) =>
+        [f.sessionId, f._count.sessionId] as const,
+      ),
+    )
 
+    // 组装列表响应
     const list = sessions.map((s) => {
       const lastMsg = s.messages[0]
 
@@ -63,9 +90,10 @@ export async function consultationsRoutes(app: FastifyInstance) {
         userId: s.userId,
         userNickName: s.user.nickname || s.user.username,
         aiName: '宁渡',
-        firstMessage: firstMsgMap.get(s.id) || '',
+        firstMessage: firstMsgMap.get(s.id) || '',         // 用户发起的首条消息预览
         lastMessageTime: lastMsg ? formatDateTime(lastMsg.createdAt) : '',
         messageCount: s._count.messages,
+        hasWarning: (flaggedMap.get(s.id) || 0) > 0,       // 🥈 危机预警标记
         startedAt: s.createdAt instanceof Date ? formatDateTime(s.createdAt) : s.createdAt,
       }
     })
@@ -73,7 +101,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
     return reply.send({ code: 200, message: 'ok', data: { list, total } })
   })
 
-  // ========== 咨询记录详情 /api/consultations/records/:id —— 详情（需 admin） ==========
+  // ========== GET /api/consultations/records/:id —— 详情（admin） ==========
   app.get('/api/consultations/records/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
@@ -87,13 +115,18 @@ export async function consultationsRoutes(app: FastifyInstance) {
     const sessionId = parseId(id, '咨询记录', reply)
     if (sessionId === null) return
 
+    // 查会话 + 用户信息 + 完整消息列表（升序，旧→新）
     const session = await prisma.chatSession.findUnique({
       where: { id: sessionId },
       include: {
         user: { select: { nickname: true, username: true } },
         messages: {
           orderBy: { createdAt: 'asc' },
-          select: { id: true, sender: true, content: true, createdAt: true },
+          select: {
+            id: true, sender: true, content: true,
+            flagged: true,                                 // 🥈 危机标记字段
+            createdAt: true,
+          },
         },
       },
     })
@@ -105,6 +138,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
     const firstUserMsg = session.messages.find((m) => m.sender === 'user')
     const lastMsg = session.messages[session.messages.length - 1]
 
+    // 显式序列化，避免 Prisma 对象直接 JSON 时字段丢失
     const data = {
       id: session.id,
       userId: session.userId,
@@ -118,6 +152,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
         id: m.id,
         sender: m.sender,
         content: m.content,
+        flagged: m.flagged,                                // 前端聊天气泡旁展示「⚠ 危机预警」
         time: m.createdAt instanceof Date ? formatDateTime(m.createdAt) : m.createdAt,
       })),
     }
@@ -125,7 +160,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
     return reply.send({ code: 200, message: 'ok', data })
   })
 
-  // ========== 删除咨询记录 /api/consultations/records/:id —— 删除（需 admin） ==========
+  // ========== DELETE /api/consultations/records/:id —— 删除（admin） ==========
   app.delete('/api/consultations/records/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
@@ -144,7 +179,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
       return reply.status(404).send({ code: 404, message: '咨询记录不存在', data: null })
     }
 
-    // Cascade delete：ChatMessage.onDelete: Cascade 会自动删关联消息
+    // ChatMessage.onDelete: Cascade → 消息自动级联删除，无需手动处理
     await prisma.chatSession.delete({ where: { id: sessionId } })
 
     return reply.send({ code: 200, message: '删除成功', data: null })

@@ -9,6 +9,7 @@ import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 import { streamChat } from '../ai/client.js'
 import { buildContext, extractKeywords } from '../ai/context.js'
+import { checkCrisis } from '../ai/safety.js'
 
 // ==================== SSE 辅助 ====================
 
@@ -147,6 +148,14 @@ export async function chatRoutes(app: FastifyInstance) {
     const userMsg = await prisma.chatMessage.create({
       data: { sessionId, sender: 'user', content },
     })
+
+    // 2b. 危机检测：匹配到高风险关键词则标记消息（异步，不阻塞主流程）
+    const crisis = checkCrisis(content)
+    if (crisis.flagged) {
+      prisma.chatMessage.update({
+        where: { id: userMsg.id }, data: { flagged: true },
+      }).catch((e: Error) => console.error('[Chat] 危机标记写入失败:', e.message))
+    }
 
     // ===== 3. 查询用户信息 + 近期心情 + 知识库 + 历史 → 拼装上下文 =====
 

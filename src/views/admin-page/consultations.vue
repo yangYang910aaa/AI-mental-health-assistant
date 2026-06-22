@@ -3,7 +3,16 @@
     <pageHead title="咨询记录" />
     <el-table :data="tableData" v-loading="loading" style="width: 100%; margin-top: 16px">
       <!-- 对话用户 -->
-      <el-table-column prop="userNickName" label="对话用户" width="140" align="center" />
+      <el-table-column label="对话用户" width="150" align="center">
+        <template #default="{ row }">
+          <span class="user-name-cell">
+            {{ row.userNickName }}
+            <el-tooltip v-if="row.hasWarning" content="含危机预警消息" placement="top">
+              <span class="warning-icon">⚠</span>
+            </el-tooltip>
+          </span>
+        </template>
+      </el-table-column>
 
       <!-- 对话记录：两行复合展示 -->
       <el-table-column label="对话记录" min-width="320" show-overflow-tooltip>
@@ -134,6 +143,27 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// ==================== 预警图标 ====================
+
+.user-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.warning-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fef0f0;
+  color: #e84747;
+  font-size: 11px;
+  cursor: default;
+}
+
 // ==================== 表格美化 ====================
 
 :deep(.el-table) {
