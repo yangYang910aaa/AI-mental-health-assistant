@@ -63,6 +63,45 @@ const resolveSession = async (request: any, reply: any) => {
 const contentToTitle = (content: string) =>
   content.length > 18 ? content.slice(0, 18) + '…' : content
 
+/**
+ * 从用户记录 + 心情数据构造上下文对象。
+ * 提取自 POST /send，减少 handler 体量 + 可复用。
+ */
+const buildUserContext = (
+  user: { nickname: string | null; username: string } | null,
+  recentMoods: Array<{ moodLabel: string; moodScore: number; content: string | null }>,
+) => {
+  const ctx: { nickname?: string; recentMood?: string; recentIssues?: string } = {}
+  const displayName = user?.nickname || user?.username || '用户'
+
+  ctx.nickname = displayName
+
+  if (recentMoods.length > 0) {
+    const scores = recentMoods.map((m) => m.moodScore)
+    const minScore = Math.min(...scores)
+    const maxScore = Math.max(...scores)
+    const labelCounts = new Map<string, number>()
+    for (const m of recentMoods) {
+      labelCounts.set(m.moodLabel, (labelCounts.get(m.moodLabel) || 0) + 1)
+    }
+    const topLabel = [...labelCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+
+    ctx.recentMood =
+      `最近 7 天记录了 ${recentMoods.length} 次心情，` +
+      `评分范围 ${minScore}~${maxScore} 分，` +
+      `主要为「${topLabel}」情绪`
+
+    const latestWithContent = recentMoods.find((m) => m.content)
+    if (latestWithContent?.content) {
+      ctx.recentIssues = `最近一次记录中提到：${latestWithContent.content.slice(0, 80)}`
+    }
+  } else {
+    ctx.recentMood = '本周还没有心情记录'
+  }
+
+  return ctx
+}
+
 // ==================== 路由注册 ====================
 
 export async function chatRoutes(app: FastifyInstance) {
@@ -122,7 +161,6 @@ export async function chatRoutes(app: FastifyInstance) {
   // ========== POST /api/user/chat/send —— 发送消息（SSE 流式） ==========
   app.post('/api/user/chat/send', async (request, reply) => {
     const userId = getUserId(request)
-    // userId 前端可能传入，但后端以 JWT 为准
     const { sessionId: sid, content: raw, deepThinking } = request.body as {
       sessionId?: number | null; content: string; userId?: number; deepThinking?: boolean
     }
@@ -135,22 +173,19 @@ export async function chatRoutes(app: FastifyInstance) {
     // ===== 1. 确定 / 创建会话 =====
     let sessionId = sid
     if (sessionId) {
-      // 已有会话 → 校验归属权
       if (!(await verifySessionOwnership(sessionId, userId, reply))) return
     } else {
-      // 新会话 → 创建，标题取消息前 18 字
       const s = await prisma.chatSession.create({
         data: { userId, title: contentToTitle(content) },
       })
       sessionId = s.id
     }
 
-    // ===== 2. 保存用户消息 → ChatMessage 表，sender = 'user' =====
+    // ===== 2. 保存用户消息 + 危机检测 =====
     const userMsg = await prisma.chatMessage.create({
       data: { sessionId, sender: 'user', content },
     })
 
-    // 2b. 危机检测：匹配到高风险关键词则标记消息（异步，不阻塞主流程）
     const crisis = checkCrisis(content)
     if (crisis.flagged) {
       prisma.chatMessage.update({
@@ -158,29 +193,23 @@ export async function chatRoutes(app: FastifyInstance) {
       }).catch((e: Error) => console.error('[Chat] 危机标记写入失败:', e.message))
     }
 
-    // ===== 3. 查询用户信息 + 近期心情 + 知识库 + 历史 → 拼装上下文 =====
-
-    // 3a. 并行查询四路数据
+    // ===== 3. 并行查询上下文数据 =====
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const [user, recentMoods, recent, articles] = await Promise.all([
-      // ① 用户昵称
       prisma.user.findUnique({
         where: { id: userId },
         select: { nickname: true, username: true },
       }),
-      // ② 近 7 天心情记录
       prisma.moodRecord.findMany({
         where: { userId, createdAt: { gte: sevenDaysAgo } },
         orderBy: { createdAt: 'desc' },
         select: { moodLabel: true, moodScore: true, content: true },
       }),
-      // ③ 历史消息（排除刚存的这条）
       prisma.chatMessage.findMany({
         where: { sessionId, id: { not: userMsg.id } },
         orderBy: { createdAt: 'desc' }, take: 20,
         select: { sender: true, content: true },
       }),
-      // ④ 知识库文章——直接用用户原文匹配，不拆词
       prisma.article.findMany({
         where: {
           status: 'published',
@@ -194,50 +223,19 @@ export async function chatRoutes(app: FastifyInstance) {
       }),
     ])
 
-    // 3c. 构造用户上下文
-    const userContext: { nickname?: string; recentMood?: string; recentIssues?: string } = {}
-    const displayName = user?.nickname || user?.username || '用户'
+    // ===== 4. 拼装上下文 → 组装 prompt =====
+    const userContext = buildUserContext(user, recentMoods)
 
-    userContext.nickname = displayName
-
-    if (recentMoods.length > 0) {
-      const scores = recentMoods.map((m) => m.moodScore)
-      const minScore = Math.min(...scores)
-      const maxScore = Math.max(...scores)
-      // 统计出现最多的情绪标签
-      const labelCounts = new Map<string, number>()
-      for (const m of recentMoods) {
-        labelCounts.set(m.moodLabel, (labelCounts.get(m.moodLabel) || 0) + 1)
-      }
-      const topLabel = [...labelCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
-
-      userContext.recentMood =
-        `最近 7 天记录了 ${recentMoods.length} 次心情，` +
-        `评分范围 ${minScore}~${maxScore} 分，` +
-        `主要为「${topLabel}」情绪`
-
-      // 取最近一条有记录内容的心情
-      const latestWithContent = recentMoods.find((m) => m.content)
-      if (latestWithContent?.content) {
-        userContext.recentIssues = `最近一次记录中提到：${latestWithContent.content.slice(0, 80)}`
-      }
-    } else {
-      userContext.recentMood = '本周还没有心情记录'
-    }
-
-    // 3d. 构造知识库片段
     const knowledgeSnippets = articles
       .filter((a) => a.summary)
       .map((a) => `《${a.title}》[${a.category}]：${a.summary}`)
 
-    // 3e. 取长期记忆 + 反转历史
     const memoryContext = await getMemoryContext(userId)
 
     const history = recent.reverse().map((m) => ({
       sender: m.sender, content: m.content,
     }))
 
-    // 3f. 组装完整 prompt
     const messages = buildContext({
       userMessage: content,
       history,
@@ -246,16 +244,29 @@ export async function chatRoutes(app: FastifyInstance) {
       memoryContext,
     })
 
-    // ===== 4. 切换到 SSE 模式 =====
+    // ===== 5. 切换到 SSE 模式 =====
     const rawReply = reply.raw
     rawReply.writeHead(200, {
-      'Content-Type': 'text/event-stream',   // 告诉浏览器这是 SSE 流
-      'Cache-Control': 'no-cache',            // 禁止缓存
-      'Connection': 'keep-alive',             // 保持长连接
-      'X-Accel-Buffering': 'no',              // 防止 nginx 代理缓冲
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     })
 
-    // 立即发送 meta 事件：告知前端会话 ID + 已保存的用户消息对象
+    // 心跳：每 10 秒发一次 SSE 注释，防止代理/Nginx 因空闲超时断开连接
+    const heartbeat = setInterval(() => {
+      rawReply.write(': heartbeat\n\n')
+    }, 10_000)
+
+    // 客户端断开检测：关闭标签页 / 取消请求时立即终止，避免浪费 API token
+    let isDisconnected = false
+    const onClose = () => {
+      isDisconnected = true
+      clearInterval(heartbeat)
+    }
+    rawReply.on('close', onClose)
+
+    // 发送 meta 事件
     sse(rawReply, 'meta', {
       sessionId,
       userMessage: {
@@ -264,20 +275,28 @@ export async function chatRoutes(app: FastifyInstance) {
       },
     })
 
-    // ===== 5. 流式生成 =====
-    let aiContent = ''      // 外层声明，供记忆提取使用
+    // ===== 6. 流式生成 =====
+    let aiContent = ''
     try {
-      // 每收到一小段文字，就通过 SSE chunk 事件推给前端，追加到 AI 气泡末尾
       aiContent = await streamChat(messages, {
-        onChunk: (delta) => sse(rawReply, 'chunk', { content: delta }),
+        onChunk: (delta) => {
+          if (isDisconnected) return // 客户端已断开，不再推送
+          sse(rawReply, 'chunk', { content: delta })
+        },
       }, deepThinking ?? false)
 
-      // ===== 6. 保存 AI 回复 → ChatMessage 表，sender = 'assistant' =====
+      // 客户端已断开 → 不保存回复，不发送 done
+      if (isDisconnected) {
+        console.log('[Chat] 客户端断开，跳过保存 AI 回复')
+        return // 跳过 done / 保存
+      }
+
+      // ===== 7. 保存 AI 回复 =====
       const aiMsg = await prisma.chatMessage.create({
         data: { sessionId, sender: 'assistant', content: aiContent },
       })
 
-      // ===== 7. 首条用户消息 → 更新会话标题 =====
+      // 首条用户消息 → 更新会话标题
       const count = await prisma.chatMessage.count({
         where: { sessionId, sender: 'user' },
       })
@@ -287,7 +306,6 @@ export async function chatRoutes(app: FastifyInstance) {
         })
       }
 
-      // 发送完成事件：告知前端 AI 回复已完整生成（含消息 ID、内容、时间）
       sse(rawReply, 'done', {
         aiReply: {
           id: aiMsg.id, sender: 'assistant' as const,
@@ -295,22 +313,25 @@ export async function chatRoutes(app: FastifyInstance) {
         },
       })
     } catch (err: any) {
-      // 上面任何一步失败，发送 error 事件告知前端
-      console.error('[Chat] AI 调用失败:', err.message ?? err)
-      sse(rawReply, 'error', { message: 'AI 回复生成失败，请稍后重试' })
+      if (isDisconnected) {
+        console.log('[Chat] 客户端断开，AI 调用中止')
+      } else {
+        console.error('[Chat] AI 调用失败:', err.message ?? err)
+        sse(rawReply, 'error', { message: 'AI 回复生成失败，请稍后重试' })
+      }
+    } finally {
+      clearInterval(heartbeat)
+      rawReply.off('close', onClose)
+      rawReply.end()
     }
 
-    rawReply.end()   // 关闭 SSE 连接
-
-    // 异步提取长期记忆——攒够 4 条用户消息才触发，减少无效 AI 调用
-    if (aiContent) {
-      const userMsgCount = history.filter((m: { sender: string }) => m.sender === 'user').length + 1 // +1 = 本轮用户消息
+    // ===== 8. 异步提取长期记忆 =====
+    if (aiContent && !isDisconnected) {
+      const userMsgCount = history.filter((m) => m.sender === 'user').length + 1
       if (userMsgCount >= 4) {
         const recentForMemory = history
           .slice(-6)
-          .map((m: { sender: string; content: string }) => ({
-            sender: m.sender, content: m.content,
-          }))
+          .map((m) => ({ sender: m.sender, content: m.content }))
         recentForMemory.push({ sender: 'user', content })
         recentForMemory.push({ sender: 'assistant', content: aiContent })
         extractMemories(recentForMemory.filter((m) => m.content))
@@ -330,7 +351,6 @@ export async function chatRoutes(app: FastifyInstance) {
       return reply.status(400).send({ code: 400, message: '标题不能为空', data: null })
     }
 
-    // 最多 200 字，与数据库 VARCHAR(200) 一致
     await prisma.chatSession.update({
       where: { id: resolved.sessionId },
       data: { title: title.trim().slice(0, 200) },
@@ -346,7 +366,7 @@ export async function chatRoutes(app: FastifyInstance) {
     const session = await prisma.chatSession.findUnique({
       where: { id: resolved.sessionId },
     })
-    const pinned = !session!.pinned   // 翻转置顶状态
+    const pinned = !session!.pinned
 
     await prisma.chatSession.update({
       where: { id: resolved.sessionId }, data: { pinned },
@@ -357,7 +377,6 @@ export async function chatRoutes(app: FastifyInstance) {
   })
 
   // ========== DELETE /api/user/chat/sessions/:id —— 删除 ==========
-  // ChatMessage.onDelete: Cascade，消息自动级联删除，无需手动处理
   app.delete('/api/user/chat/sessions/:id', async (request, reply) => {
     const resolved = await resolveSession(request, reply)
     if (!resolved) return

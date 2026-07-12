@@ -39,7 +39,7 @@
                     <el-dropdown-item command="pin">
                       <el-icon><Top /></el-icon>{{ s.pinned ? '取消置顶' : '置顶' }}
                     </el-dropdown-item>
-                    <el-dropdown-item command="delete"  class="danger-item">
+                    <el-dropdown-item command="delete" class="danger-item">
                       <el-icon><Delete /></el-icon>删除
                     </el-dropdown-item>
                   </el-dropdown-menu>
@@ -59,20 +59,20 @@
     <div class="chat-main">
       <!-- 顶部状态栏 -->
       <div class="chat-header">
-        <span class="chat-title">{{ activeSessionId ? currentSessionTitle : '新对话' }}</span>
+        <span class="chat-title">{{ currentSessionTitle }}</span>
         <span v-if="activeSessionId" class="chat-meta">{{ messages.length }} 条消息</span>
       </div>
 
       <!-- 消息列表 -->
-      <div class="chat-messages" ref="messagesContainer">
-        <div v-if="!messages.length && !aiLoading" class="chat-empty">
+      <div class="chat-messages" ref="messagesContainerRef">
+        <div v-if="!messages.length && !isGenerating" class="chat-empty">
           <el-icon :size="40" color="#d4cfc4"><ChatDotRound /></el-icon>
           <p>开始和 AI 咨询师聊聊吧</p>
           <p class="sub">在这里你可以自由表达，所有对话都会被温柔倾听</p>
         </div>
 
         <div
-          v-for="msg in messages"
+          v-for="(msg, idx) in messages"
           :key="msg.id"
           class="chat-bubble"
           :class="msg.sender === 'user' ? 'user-bubble' : 'ai-bubble'"
@@ -86,8 +86,14 @@
             </el-avatar>
           </div>
           <div class="bubble-content">
-            <div class="bubble-text" :class="{ error: msg.error }">{{ msg.content }}</div>
-            <span class="bubble-time">{{ msg.time.slice(11, 16) }}</span>
+            <div class="bubble-text" :class="{ error: msg.error && msg.sender === 'assistant' }">
+              {{ msg.content }}
+              <!-- 错误气泡 → 重试入口 -->
+              <template v-if="msg.error && msg.sender === 'assistant' && idx === messages.length - 1">
+                <a class="retry-link" @click="retryMessage">重新生成</a>
+              </template>
+            </div>
+            <span class="bubble-time">{{ msg.time ? msg.time.slice(11, 16) : '' }}</span>
           </div>
         </div>
 
@@ -100,18 +106,27 @@
           v-model="inputText"
           type="textarea"
           :rows="2"
-          placeholder="输入你想说的话…"
+          :placeholder="isGenerating ? 'AI 正在生成中…' : '输入你想说的话…'"
           resize="none"
-          @keydown.enter.exact.prevent="handleSend"
+          :disabled="isGenerating"
+          @keydown.enter.exact.prevent="sendMessage"
         />
         <el-button
+          v-if="!isGenerating"
           type="primary"
           :icon="Promotion"
-          :loading="aiLoading"
           :disabled="!inputText.trim()"
-          @click="handleSend"
+          @click="sendMessage"
         >
           发送
+        </el-button>
+        <el-button
+          v-else
+          type="danger"
+          :icon="Close"
+          @click="stopGeneration"
+        >
+          停止生成
         </el-button>
       </div>
       <div class="chat-input-hint">
@@ -122,253 +137,66 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { ElMessageBox } from 'element-plus'
-import { Expand, Fold, Plus, Promotion, Sunrise, ChatDotRound, MoreFilled, Top, Edit, Delete } from '@element-plus/icons-vue'
+/**
+ * userChat —— AI 对话页
+ *
+ * 职责：模板 + 样式。所有业务逻辑委托给 useChat() composable。
+ */
+import { ref, watch, nextTick } from 'vue'
+import {
+  Expand, Fold, Plus, Promotion, Sunrise, ChatDotRound,
+  MoreFilled, Top, Edit, Delete, Close,
+} from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getChatSessions, getChatMessages, sendMessageStream, renameSession, togglePinSession, deleteChatSession, type ChatSession, type ChatMessage } from '@/api/user'
+import { useChat } from '@/composables/useChat'
 
 const userStore = useUserStore()
 
-// 左边栏是否折叠
-const sidebarCollapsed = ref(false)
+// 所有聊天状态和方法来自 composable
+const {
+  sessions,
+  messages,
+  activeSessionId,
+  inputText,
+  isGenerating,
+  sidebarCollapsed,
+  loadingSessions,
+  currentSessionTitle,
+  switchSession,
+  startNewChat,
+  sendMessage,
+  stopGeneration,
+  retryMessage,
+  handleSessionAction,
+  scrollToBottom,
+  focusInput,
+  formatTime,
+} = useChat()
 
-// 当前会话 ID
-const activeSessionId = ref<number | null>(null)
-
-// 会话列表记录:包含用户的所有对话记录
-const sessions = ref<ChatSession[]>([])
-
-// 当前会话消息列表:具体某个对话的所有消息，包含用户和 AI 的消息
-const messages = ref<ChatMessage[]>([])
-
-// 对话窗口的输入框文本
-const inputText = ref('')
-
-// AI 是否正在输入...
-const aiLoading = ref(false)
-
-// 加载会话列表
-const loadingSessions = ref(false)
-
-// 消息列表容器
-const messagesContainer = ref<HTMLElement>()
-
-// 输入框引用
+// 模板 ref —— 滚动容器 + 输入框
+const messagesContainerRef = ref<HTMLElement>()
 const inputRef = ref<any>()
 
-// 当前会话标题
-const currentSessionTitle = computed(() => {
-  const s = sessions.value.find((s) => s.id === activeSessionId.value)
-  return s?.title || '新对话'
-})
+// 消息变化时滚到底
+watch(
+  () => messages.value.length,
+  () => scrollToBottom(messagesContainerRef.value),
+)
 
-// 滚动到最底部:确保最新消息可见
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
+// 切会话后聚焦输入框
+watch(activeSessionId, () => focusInput(inputRef.value))
 
-// 格式化时间
-const formatTime = (time: string) => {
-  if (!time) return ''
-  const d = new Date(time.replace(' ', 'T'))
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
-  if (diff < 86400000) return time.slice(11, 16) // 今天显示 HH:mm
-  return time.slice(5, 10) // 其他显示 MM-DD
-}
-
-// 加载会话列表
-const loadSessions = async () => {
-  loadingSessions.value = true
-  try {
-    const userId = userStore.userInfo?.id ?? 0
-    sessions.value = await getChatSessions(userId)
-  } catch {
-    sessions.value = []
-  } finally {
-    loadingSessions.value = false
-  }
-}
-
-// 切换会话
-const switchSession = async (sessionId: number) => {
-  activeSessionId.value = sessionId
-  try {
-    messages.value = await getChatMessages(sessionId)
-  } catch {
-    messages.value = []
-  }
-  scrollToBottom()
-  focusInput()
-}
-
-// 聚焦输入框
-const focusInput = () => nextTick(() => inputRef.value?.focus())
-
-// 新建对话
-const startNewChat = () => {
-  activeSessionId.value = null
-  messages.value = [] //AI和用户的消息都为空
-  inputText.value = ''// 清空输入框
-  focusInput()
-}
-
-// 发送消息（流式）
-const handleSend = async () => {
-  const text = inputText.value.trim()
-  if (!text || aiLoading.value) return
-
-  inputText.value = ''
-  aiLoading.value = true
-
-  // 乐观插入用户消息（临时 ID）
-  const tempId = Date.now()
-  const tempTime = new Date().toISOString().replace('T', ' ').slice(0, 19)
-  messages.value.push({
-    id: tempId,
-    sender: 'user',
-    content: text,
-    time: tempTime,
-  })
-  scrollToBottom()
-
-  // 跟踪流式 AI 气泡位置
-  let aiBubbleIndex = -1
-
-  await sendMessageStream(activeSessionId.value, text, {
-    onMeta({ sessionId, userMessage }) {
-      // 替换临时用户消息为真实消息
-      const idx = messages.value.findIndex((m) => m.id === tempId)
-      if (idx !== -1) messages.value[idx] = userMessage
-
-      // 创建空 AI 气泡，开始往里填字
-      messages.value.push({
-        id: -Date.now(), // 临时负 ID，done 时替换
-        sender: 'assistant',
-        content: '',
-        time: '',
-      })
-      aiBubbleIndex = messages.value.length - 1
-
-      // 新会话 → 记录 sessionId
-      if (!activeSessionId.value) {
-        activeSessionId.value = sessionId
-      }
-
-      scrollToBottom()
-    },
-
-    onChunk({ content }) {
-      // 往 AI 气泡里追加文字
-      if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
-        messages.value[aiBubbleIndex].content += content
-        scrollToBottom()
-      }
-    },
-
-    async onDone({ aiReply }) {
-      // 替换临时 AI 气泡为完整消息
-      if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
-        messages.value[aiBubbleIndex] = aiReply
-      }
-
-      // 刷新会话列表
-      await loadSessions()
-
-      aiLoading.value = false
-      scrollToBottom()
-      focusInput()
-    },
-
-    onError(message) {
-      // 把空的 AI 气泡替换为错误提示
-      if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
-        messages.value[aiBubbleIndex] = {
-          ...messages.value[aiBubbleIndex],
-          content: 'AI 回复生成失败，请稍后重试',
-          error: true,
-        }
-      }
-      console.error('[Chat] 流式发送失败:', message)
-      aiLoading.value = false
-    },
-  })
-}
-
-// 会话操作：重命名 / 置顶 / 删除
-const handleSessionAction = async (command: string, session: ChatSession) => {
-  switch (command) {
-    case 'rename':
-      try {
-        const { value } = await ElMessageBox.prompt('请输入新标题', '重命名', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          inputValue: session.title,
-          inputValidator: (v: string) => v.trim().length > 0 || '标题不能为空',
-        } as any)
-        if (value?.trim()) {
-          await renameSession(session.id, value.trim())
-          session.title = value.trim()
-          // 同时更新侧栏显示
-          if (activeSessionId.value === session.id) {
-            // currentSessionTitle is computed, will auto-update
-          }
-        }
-      } catch { /* 用户取消 */ }
-      break
-
-    case 'pin':
-      try {
-        const result = await togglePinSession(session.id)
-        session.pinned = result.pinned
-        // 重新排序：置顶在前
-        sessions.value.sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-          return 0 // 保持原有顺序
-        })
-      } catch { /* 忽略 */ }
-      break
-
-    case 'delete':
-      try {
-        await ElMessageBox.confirm('删除后对话记录不可恢复，确定删除？', '删除对话', {
-          confirmButtonText: '删除',
-          cancelButtonText: '取消',
-          type: 'warning',
-        })
-        await deleteChatSession(session.id)
-        sessions.value = sessions.value.filter((s) => s.id !== session.id)
-        if (activeSessionId.value === session.id) {
-          startNewChat()
-        }
-      } catch { /* 用户取消 */ }
-      break
-  }
-}
-
-// ==================== 生命周期 ====================
-onMounted(async () => {
-  await loadSessions()
-  // 若有历史会话，默认选第一个
-  if (sessions.value.length > 0) {
-    await switchSession(sessions.value[0].id)
-  }
-})
-
-// 切换会话时滚到底
-watch(activeSessionId, () => scrollToBottom())
+// 初始聚焦（onMounted 在 useChat 内部已调用 loadSessions + switchSession）
+nextTick(() => focusInput(inputRef.value))
 </script>
+
+<!-- ==================== 样式 ==================== -->
 
 <style lang="scss" scoped>
 .user-chat {
   display: flex;
-  height: calc(100vh - 60px - 48px); // 扣掉顶栏 + padding
-  margin: -24px; // 抵消 userLayout 的 padding
+  height: calc(100vh - 60px - 48px);
+  margin: -24px;
   background: #fff;
   border-radius: 4px;
   overflow: hidden;
@@ -412,9 +240,7 @@ watch(activeSessionId, () => scrollToBottom())
       cursor: pointer;
       font-size: 14px;
       transition: background 0.2s;
-      &:hover {
-        background: #f8f6f3;
-      }
+      &:hover { background: #f8f6f3; }
     }
 
     .session-item {
@@ -424,12 +250,8 @@ watch(activeSessionId, () => scrollToBottom())
       cursor: pointer;
       transition: background 0.15s;
       position: relative;
-      &:hover {
-        background: #f8f6f3;
-      }
-      &.active {
-        background: #e8f0e4;
-      }
+      &:hover { background: #f8f6f3; }
+      &.active { background: #e8f0e4; }
 
       .pin-icon {
         color: #8b9e7e;
@@ -466,11 +288,7 @@ watch(activeSessionId, () => scrollToBottom())
           border-radius: 6px;
           opacity: 0.55;
           transition: opacity 0.15s, background 0.15s, color 0.15s;
-          &:hover {
-            background: #e5e7eb;
-            color: #374151;
-            opacity: 1;
-          }
+          &:hover { background: #e5e7eb; color: #374151; opacity: 1; }
         }
       }
 
@@ -510,10 +328,9 @@ watch(activeSessionId, () => scrollToBottom())
     .chat-meta { font-size: 14px; color: #9ca3af; }
   }
 
-  // 消息列表
   .chat-messages {
     flex: 1;
-    overflow-y: auto;/* 消息多时这里滚动，头部和输入框不滚动 */
+    overflow-y: auto;
     padding: 20px 24px;
     background: #faf9f7;
   }
@@ -533,7 +350,6 @@ watch(activeSessionId, () => scrollToBottom())
     }
   }
 
-  // 聊天气泡
   .chat-bubble {
     display: flex;
     gap: 10px;
@@ -585,21 +401,17 @@ watch(activeSessionId, () => scrollToBottom())
           color: #e84747;
           border-radius: 4px 16px 16px 16px !important;
           box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+          white-space: pre-wrap;
         }
 
-        &.typing {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          padding: 14px 18px;
-          .dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #c4bfb4;
-            animation: bounce 1.4s infinite ease-in-out both;
-            &:nth-child(1) { animation-delay: -.32s; }
-            &:nth-child(2) { animation-delay: -.16s; }
-          }
+        .retry-link {
+          display: inline-block;
+          margin-top: 6px;
+          color: #8b9e7e;
+          text-decoration: underline;
+          cursor: pointer;
+          font-size: 13px;
+          &:hover { color: #6b7e5e; }
         }
       }
 
@@ -609,11 +421,6 @@ watch(activeSessionId, () => scrollToBottom())
         padding: 0 4px;
       }
     }
-  }
-
-  @keyframes bounce {
-    0%, 80%, 100% { transform: scale(0); }
-    40% { transform: scale(1); }
   }
 
   // 输入区
@@ -634,9 +441,11 @@ watch(activeSessionId, () => scrollToBottom())
     .el-button {
       height: 42px;
       border-radius: 10px;
-      background: #8b9e7e;
-      border-color: #8b9e7e;
-      &:hover { background: #7a8e6f !important; }
+      &.el-button--primary {
+        background: #8b9e7e;
+        border-color: #8b9e7e;
+        &:hover { background: #7a8e6f !important; }
+      }
     }
   }
 
@@ -662,8 +471,6 @@ watch(activeSessionId, () => scrollToBottom())
 
 <style lang="scss">
 /* ==================== 下拉菜单全局美化 ==================== */
-/* 下拉菜单被 teleport 到 body，必须用非 scoped 样式 */
-
 .el-dropdown-menu {
   padding: 4px !important;
   border-radius: 10px !important;

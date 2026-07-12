@@ -39,16 +39,22 @@ Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + 
 ```bash
 # 前端
 pnpm dev              # 启动前端（http://localhost:5173）
-pnpm build            # 类型检查 + 构建
+pnpm build            # vue-tsc -b + vite build 类型检查 + 构建
+pnpm preview          # 预览生产构建
 
 # 后端（先 cd server）
-pnpm dev              # 启动后端（http://localhost:3000）
+pnpm dev              # 启动后端（http://localhost:3000），predev 自动释放端口
+pnpm build            # tsc 编译
+pnpm start            # node dist/index.js 生产启动
 pnpm db:migrate       # Prisma 数据库迁移
 pnpm db:seed          # 填充种子数据
+pnpm db:seed-moods    # 单独填充心情记录
+pnpm db:seed-articles # 单独填充文章
 pnpm db:studio        # Prisma 可视化管理
 
 # 一键启动前后端
 pnpm dev:all          # concurrently 同时跑前端 + 后端
+pnpm dev:server       # 仅启动后端
 ```
 
 ---
@@ -58,8 +64,10 @@ pnpm dev:all          # concurrently 同时跑前端 + 后端
 ```
 server/                                # 后端（Fastify + Prisma 7 + MySQL）
 ├── src/
-│   ├── index.ts                       # Fastify 入口，注册插件/路由，监听 :3000
-│   ├── db.ts                          # Prisma 7 客户端（mariadb 适配器 + dotenv）
+│   ├── index.ts                       # Fastify 入口：cors/multipart/static 插件 + 50MB bodyLimit + 全局错误处理（FST_ERR_VALIDATION 字段级详情映射 + 5xx 通用遮罩） + SIGINT/SIGTERM 优雅关闭 + 监听 :3000
+│   ├── db.ts                          # Prisma 7 客户端（@prisma/adapter-mariadb 适配器 + dotenv）
+│   ├── types/
+│   │   └── fastify.d.ts               # 扩展 FastifyRequest（挂载 user: JwtPayload，requireAuth 后可用）
 │   ├── routes/
 │   │   ├── auth.ts                    # 登录/注册/验证 + 忘记密码/重置密码 + profile + password
 │   │   ├── knowledge.ts               # 知识文章 CRUD + /suggestions 标题联想
@@ -68,17 +76,18 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   │   ├── home.ts                    # 用户首页聚合（情绪统计 + 趋势 + 最近对话）
 │   │   ├── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
 │   │   ├── consultations.ts           # 管理端咨询记录（列表/详情/删除，需 admin，ChatSession + ChatMessage）
-│   │   ├── chat.ts                    # AI 聊天（会话列表/消息/发送 SSE 流式/删除，需登录，对接 DeepSeek API）
+│   │   ├── chat.ts                    # AI 聊天（会话列表/消息/发送 SSE 流式/删除，需登录，对接 DeepSeek API，含 SSE 心跳 + 客户端断连检测 + buildUserContext 提取）
 │   │   ├── memory.ts                  # 长期记忆管理（列表/删除单条/清空，需登录）
 │   │   └── dashboard.ts               # 数据分析（KPI 聚合 + 趋势，需 admin，JS 端聚合避免 raw SQL 兼容性）
 │   ├── middleware/
-│   │   └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
+│   │   └── jwtAuth.ts                 # JWT 签发 signToken() + requireAuth（启动时检查 JWT_SECRET，缺失则抛错）
 │   └── utils/
 │       ├── format.ts                  # formatDateTime() —— Date → "YYYY-MM-DD HH:mm:ss"
 │       ├── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
-│       └── email.ts                   # sendResetEmail() —— nodemailer 发送 6 位验证码
+│       └── email.ts                   # sendResetEmail() —— nodemailer（QQ SMTP SSL，超时 10s/10s/15s）
+│   ├── ai/                            # AI 核心模块（client/context/safety/memory/prompts）
 ├── prisma/
-│   ├── schema.prisma                  # 数据模型：User + MoodRecord + ChatSession + ChatMessage(flagged) + Article + Memory
+│   ├── schema.prisma                  # User/MoodRecord/ChatSession(pinned)/ChatMessage(flagged,Cascade)/Memory/Article，含 @@index + updatedAt
 │   ├── seed.ts                        # 种子：11 用户 + 15 文章 + 50 心情 + 2 会话
 │   └── migrations/                    # Prisma 迁移历史
 ├── scripts/
@@ -86,28 +95,32 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   ├── seed-data.ts                   # 心情记录种子共享数据（AI 分析/文案/触发因素）
 │   ├── seed-moods.ts                  # 单独填充心情记录（每用户 7 天均匀分布）
 │   └── seed-articles.ts               # 单独填充文章（+20 篇）
+├── tsconfig.json                      # TS 编译配置（ES2022 / ESNext / strict:true / include: src）
 ├── prisma.config.ts                   # Prisma 7 连接配置（datasource.url）
+├── dist/                              # tsc 编译输出
 ├── .env                               # DATABASE_URL + JWT_SECRET + SMTP_*（不入 git）
 └── package.json                       # 独立依赖（fastify/prisma/bcryptjs/jsonwebtoken/nodemailer）
 
 src/
-├── main.ts                          # 入口：createPinia + ElementPlus + Router + 全局图标注册
+├── main.ts                          # 入口：createPinia + ElementPlus + Router + vue-echarts 全局注册（v-chart） + ECharts 按需引入 + 全局图标注册
 ├── App.vue                          # 根组件，仅 <router-view>
 ├── style.scss                       # 全局 CSS reset + Element Plus 覆盖
-├── vite-env.d.ts                    # Vite 类型 + *.vue 模块声明 + wangEditor 类型补丁
+├── vite-env.d.ts                    # Vite 类型 + *.vue 模块声明 + wangEditor 类型补丁 + ImportMetaEnv（VITE_API_BASE_URL）
 │
 ├── types/
 │   └── router.d.ts                  # 扩展 RouteMeta：title、icon、hidden
 │
 ├── utils/
-│   └── request.ts                   # Axios 封装（核心基础设施）
-│       ├── 单泛型 API：request.get<T>() / post<T>() 只需一个泛型
-│       ├── HTTP 状态码驱动：后端直接使用 HTTP 200/401/403/500 等
-│       ├── 401 → 清 token + userInfo + replace 跳登录（并发防抖锁）
-│       ├── 403 → 弹提示，不跳转
-│       ├── showError() 去重：相同文案 3 秒内不重复弹
-│       ├── silent 模式：传入 { silent: true } 禁用 toast，调用方自行处理
-│       └── BusinessError 类：携带 code 字段
+│   ├── request.ts                   # Axios 封装（核心基础设施）
+│   │   ├── 单泛型 API：request.get<T>() / post<T>() / put<T>() / delete<T>() / patch<T>() 只需一个泛型
+│   │   ├── BASE_URL 导出供 auth.ts validateToken 复用
+│   │   ├── HTTP 状态码驱动：后端直接使用 HTTP 200/401/403/500 等
+│   │   ├── 401 → 清 token + userInfo + replace 跳登录（并发防抖锁）
+│   │   ├── 403 → 弹提示，不跳转
+│   │   ├── showError() 去重：相同文案 3 秒内不重复弹
+│   │   ├── silent 模式：传入 { silent: true } 禁用 toast，调用方自行处理
+│   │   └── BusinessError 类：携带 code 字段
+│   └── sse.ts                       # 通用 SSE 流解析器（异步生成器，buffer 半行 + TextDecoder stream 模式保证任意分块正确解析，支持 AbortSignal）
 │
 ├── layouts/                         # 布局壳子（组装导航 + 内容区，路由直接引用）
 │   ├── adminLayout.vue              # 管理端：侧边栏 + 顶栏 + <router-view>
@@ -124,7 +137,8 @@ src/
 │   └── user.ts                      # 用户端 API（首页、聊天、心情记录）
 │
 ├── composables/
-│   └── useProfile.ts                # 个人中心共享逻辑（头像/昵称/邮箱/密码），两端共用
+│   ├── useProfile.ts                # 个人中心共享逻辑（头像/昵称/邮箱/密码），两端共用
+│   └── useChat.ts                   # 聊天状态机（会话管理 + 流式发送 + RAF 节流 + AbortController + generationId 防串 + 错误恢复），userChat.vue 的业务逻辑全在此
 │
 ├── stores/
 │   ├── admin.ts                     # 侧边栏折叠状态
@@ -161,11 +175,13 @@ src/
     │   ├── userMood.vue             # 心情记录（表单 + 历史列表）✅ 已完成
     │   ├── userArticles.vue         # 健康知识列表（卡片网格 + 搜索筛选）✅ 已完成
     │   ├── userArticleDetail.vue    # 文章详情（富文本渲染）✅ 已完成
-    │   └── userProfile.vue          # 个人中心（头像/昵称/邮箱 + 修改密码）✅ 已完成
-    └── login/
-        ├── login.vue                # 登录页（用户名/邮箱 + 密码，支持邮箱/用户名登录，带忘记密码入口）
-        ├── register.vue             # 注册页（用户名 + 邮箱(必填) + 昵称(选填) + 密码）
-        └── forgotPassword.vue       # 忘记密码（邮箱 → 6位验证码 → 新密码，单页面三步）
+    │   ├── userProfile.vue          # 个人中心（头像/昵称/邮箱 + 修改密码）✅ 已完成
+    │   └── userMemory.vue           # 长期记忆管理（查看/删除/清空）✅ 已完成
+    ├── login/
+    │   ├── login.vue                # 登录页（用户名/邮箱 + 密码，支持邮箱/用户名登录，带忘记密码入口）
+    │   ├── register.vue             # 注册页（用户名 + 邮箱(必填) + 昵称(选填) + 密码）
+    │   └── forgotPassword.vue       # 忘记密码（邮箱 → 6位验证码 → 新密码，单页面三步）
+    └── NotFound.vue                 # 404 页面（根据登录态 + 角色智能跳转）
 ```
 
 ---
@@ -230,22 +246,32 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 
 ### 3. 路由命名与导航守卫
 
-三套路由：`/back`（管理后台）、`/user`（用户端）、`/auth`（认证）。根路径 `/` redirect 到 `/auth/login`。
+四套路由：`/back`（管理后台）、`/user`（用户端）、`/auth`（认证）、`/:pathMatch(.*)*`（404 兜底）。根路径 `/` redirect 到 `/auth/login`。
 
 ```ts
 export const ROUTE_NAMES = {
-  backLayout, dashboard, knowledge, consultations, emotional, adminProfile, // 管理端
-  userLayout, userHome, userChat, userMood, userArticles, userMemory, // 用户端
+  // 后台路由
+  backLayout, dashboard, knowledge, consultations, emotional, adminProfile,
+  // 用户端路由
+  userLayout, userHome, userChat, userMood, userArticles, userMemory,
   userArticleDetail, userProfile,
-  login, register, forgotPassword,                                   // 认证
+  // 认证路由
+  authLayout, login, register, forgotPassword,
 } as const
-router.push({ name: ROUTE_NAMES.knowledge })  // ✅ 用常量，不硬编码
+router.push({ name: ROUTE_NAMES.dashboard })  // ✅ 用常量，不硬编码
 ```
 
-导航守卫逻辑（`router.beforeEach`）：
-- `/back/*` → 需 token + admin 角色，缺一则跳 `/auth/login?redirect=原路径`
-- `/user/*` → 需 token，缺则跳登录
-- `/auth/*` → 已有 token 则按角色分流：admin → `/back/knowledge`，普通用户 → `/user/home`
+导航守卫逻辑（两层：路由级 `beforeEnter` + 全局 `beforeEach`）：
+
+**路由级 `beforeEnter`（[router/index.ts](src/router/index.ts)）：**
+- `/back/*` → `beforeEnter` 只校验 admin 角色（token 校验在 beforeEach），非 admin 踢回登录页
+- `/user/*` → `meta: { requiresAuth: true }`，需登录但不校验角色（管理员也能访问用户端）
+
+**全局 `beforeEach`：**
+- **首次 token 验证**：`tokenChecked` / `tokenValid` 标志位。首次进入时调用 `validateToken()` 向后端验证 token 有效性，无效则同步清除 `token` + `userInfo`
+- `requiresAuth` 路由 → 未登录则跳 `/auth/login?redirect=原路径`
+- `/auth/*` 认证路由 → 已登录则按角色分流：admin → `/back/dashboard`，普通用户 → `/user/home`
+- `/:pathMatch(.*)*` → 404 页面（`views/NotFound.vue`），已登录用户显示"返回首页/管理后台"，未登录显示"返回登录"
 
 ### 4. 共享常量与工具函数
 
@@ -334,15 +360,15 @@ TRIGGER_OPTIONS    // 触发因素选项
 ### API `api/knowledge.ts`
 
 ```ts
-fetchArticles(params)           // GET    /knowledge/articles
-createArticle(params)           // POST   /knowledge/articles
-updateArticle(id, params)       // PUT    /knowledge/articles/:id
-deleteArticle(id)               // DELETE /knowledge/articles/:id
+fetchArticles(params)              // GET    /knowledge/articles
+fetchArticleDetail(id)             // GET    /knowledge/articles/:id
+createArticle(params)              // POST   /knowledge/articles
+updateArticle(id, params)          // PUT    /knowledge/articles/:id
+deleteArticle(id)                  // DELETE /knowledge/articles/:id
+fetchTitleSuggestions(query)       // GET    /knowledge/articles/suggestions
 ```
 
-### Mock `vite.config.ts`
-
-一个 handler 处理 `/api/knowledge/articles`，按 method 分发 GET/POST/PUT/DELETE，内存数组存储，dev server 重启后重置。
+> 以上接口均已迁至真实后端，Mock 插件已删除。
 
 ---
 
@@ -371,7 +397,7 @@ deleteArticle(id)               // DELETE /knowledge/articles/:id
 ```ts
 // 类型
 Consultation { id, userId, userNickName, aiName, firstMessage, lastMessageTime, messageCount, startedAt, messages?: Message[] }
-Message { id, sender: 'user' | 'assistant', content, time }
+Message { id, sender: 'user' | 'assistant', content, time, flagged?: boolean }
 ConsultationListParams { page, pageSize }
 ConsultationListResult { list: Consultation[], total: number }
 
@@ -490,7 +516,7 @@ getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
 | 聊天气泡 | 用户绿色靠右 / AI 米白靠左，带头像和时间 |
 | 消息输入 | 底部 textarea + 发送按钮，回车发送，Shift+Enter 换行 |
 | 新建对话 | 顶部按钮 + 右侧自动聚焦输入框 |
-| SSE 流式回复 | `sendMessageStream` 通过 fetch + ReadableStream 接收 SSE（meta/chunk/done/error），打字机效果实时渲染 |
+| SSE 流式回复 | `sendMessageStream` 通过 fetch + `parseSSEStream()` 接收 SSE（meta/chunk/done/error），打字机效果实时渲染，支持 AbortSignal 取消 |
 | 乐观更新 | 用户消息立即显示（临时 ID），onMeta 替换为真实消息，onChunk 逐字追加 AI 气泡 |
 
 后端实现见 `server/src/routes/chat.ts`，对接 **DeepSeek API**（`deepseek-chat` 模型），System Prompt 定义 AI 为"宁渡"心理健康助手（温暖共情 + 安全边界）。
@@ -517,7 +543,7 @@ getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
 
 ### 个人中心 `userProfile.vue` + `adminProfile.vue`
 
-两人页面合并为共享组件 `ProfilePage.vue`（`role` + `defaultInitial` props），各自路由文件只是 6 行薄壳。
+两人页面合并为共享组件 `ProfilePage.vue`（由 `useProfile(fileInput, passwordFormRef, defaultInitial)` composable 提供所有逻辑），各自路由文件只是薄壳。
 | 区域 | 内容 |
 |------|------|
 | 头像区 | hover 相机覆盖层 → 文件选择 → `uploadFile()` → `PUT /api/auth/profile` → `userStore.setUser()` 刷新导航栏 |
@@ -540,15 +566,21 @@ MoodSuggestion { riskDescription, advice }
 MemoryItem { id, content, category, createdAt }
 
 // 接口
-getUserHome()                        // GET /user/home（JWT）
-getChatSessions()                    // GET /user/chat/sessions（JWT）
-getChatMessages(sessionId)           // GET /user/chat/sessions/:id
-sendMessageStream(sessionId, ...)    // POST /user/chat/send（SSE 流式）
-createMood(params)                   // POST /user/mood（JWT + 异步 AI 分析）
-getUserMoods(page, size, label)      // GET /user/mood（JWT）
-getMemories()                        // GET /user/memories
-deleteMemory(id)                     // DELETE /user/memories/:id
-clearMemories()                      // DELETE /user/memories
+  getUserHome()                          // GET /user/home（JWT）
+  getChatSessions()                      // GET /user/chat/sessions（JWT）
+  getChatMessages(sessionId)             // GET /user/chat/sessions/:id
+  sendMessage(sessionId, content, deepThinking?)       // POST /user/chat/send（非流式）
+  sendMessageStream(sessionId, content, callbacks, signal?, deepThinking?) // POST /user/chat/send（SSE 流式，signal 用于取消，deepThinking 默认 false）
+  renameSession(sessionId, title)        // PUT /user/chat/sessions/:id
+  togglePinSession(sessionId)            // PUT /user/chat/sessions/:id/pin
+  deleteChatSession(sessionId)           // DELETE /user/chat/sessions/:id
+  createMood(params)                     // POST /user/mood（JWT + 异步 AI 分析）
+  getUserMoods(page, size, label)        // GET /user/mood（JWT）
+  getUserMoodDetail(id)                  // GET /user/mood/:id（全量含 AI 分析）
+  deleteMood(id)                         // DELETE /user/mood/:id
+  getMemories()                          // GET /user/memories
+  deleteMemory(id)                       // DELETE /user/memories/:id
+  clearMemories()                        // DELETE /user/memories
 ```
 
 ### Mock
@@ -710,7 +742,7 @@ clearMemories()                      // DELETE /user/memories
 ### 整体架构
 
 ```
-浏览器 → Vue 前端（userChat.vue）→ api/user.ts（sendMessageStream / fetch SSE）
+浏览器 → Vue 前端（userChat.vue → useChat composable）→ api/user.ts（sendMessageStream / SSE 流式）
                                         ↓
                         server/src/routes/chat.ts（路由编排层）
                            ├── JWT 认证 + 会话管理
@@ -735,8 +767,9 @@ server/src/ai/                        ← AI 核心模块
 | 安全 | `ai/safety.ts` | 危机检测、内容过滤 | 按需补充关键词 |
 | Prompt | `ai/prompts/system.ts` | AI 人设文案 | 调风格时改 |
 | 路由 | `routes/chat.ts` | JWT → 校验 → 委托 → SSE → 落库 | 加新接口时改 |
-| 前端 API | `src/api/user.ts` | `sendMessageStream()` + CRUD 函数 | 加接口时改 |
-| 前端 UI | `src/views/user-page/userChat.vue` | 流式气泡、会话管理 | 改交互时改 |
+| 前端 API | `src/api/user.ts` | `sendMessageStream()` + CRUD 函数，委托 `sse.ts` 解析 | 加接口时改 |
+| 前端逻辑 | `src/composables/useChat.ts` | 聊天状态机，流式发送/取消/节流/重试 | 改交互时改 |
+| 前端 UI | `src/views/user-page/userChat.vue` | 模板 + 样式壳，调用 useChat | 改交互时改 |
 
 ### 方案一：直调 LLM + 深度思考 ✅
 

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { parseSSEStream } from '@/utils/sse'
 
 // ==================== 类型定义 ====================
 
@@ -92,15 +93,23 @@ export const sendMessage = (sessionId: number | null, content: string, userId?: 
 /**
  * 流式发送消息——返回一个 Promise，解析时流已完成。
  * 通过回调实时接收 SSE 事件。
+ *
+ * @param sessionId   会话 ID（null 表示新会话）
+ * @param content     用户消息文本
+ * @param callbacks   SSE 事件回调
+ * @param signal      可选 AbortSignal，触发后取消流式请求
+ * @param deepThinking 是否开启深度思考模式
  */
 export const sendMessageStream = async (
   sessionId: number | null,
   content: string,
   callbacks: StreamCallbacks,
+  signal?: AbortSignal,
   deepThinking = false,
 ): Promise<void> => {
   const token = localStorage.getItem('token')
 
+  // ===== 1. 发起请求 =====
   let response: Response
   try {
     response = await fetch('/api/user/chat/send', {
@@ -110,67 +119,54 @@ export const sendMessageStream = async (
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ sessionId, content, deepThinking }),
+      signal,
     })
-  } catch {
+  } catch (err: any) {
+    // AbortError → 用户主动取消，静默退出，不报错
+    if (err?.name === 'AbortError') return
     callbacks.onError('网络连接失败，请检查网络后重试')
     return
   }
 
+  // ===== 2. HTTP 错误 =====
   if (!response.ok) {
+    // 401 → token 过期，清状态 + 跳登录页
+    if (response.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
+      window.location.replace('/auth/login')
+      return
+    }
+
     const err = await response.json().catch(() => ({ message: '请求失败' }))
     callbacks.onError(err.message || '请求失败')
     return
   }
 
-  // 逐行解析 SSE 流
-  //不用response.json()，因为会等整个响应体传输完毕才解析,用户就看不到打字机效果
-  const reader = response.body!.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
+  // ===== 3. 用通用 SSE 解析器消费流 =====
+  // 不用 response.json()，因为会等整个响应体传输完毕才解析，用户就看不到打字机效果
+  for await (const ev of parseSSEStream(response, signal)) {
+    // signal 触发后 reader 被 cancel，循环可能还剩一个 yield
+    if (signal?.aborted) break
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() || ''
-
-    let currentEvent = ''
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('event: ')) {
-        currentEvent = trimmed.slice(7)
-      } else if (trimmed.startsWith('data: ')) {
-        try {
-          const data = JSON.parse(trimmed.slice(6))
-          switch (currentEvent) {
-            //meta触发时机:后端刚存完用户消息，准备开始AI生成前
-            case 'meta':
-              callbacks.onMeta(data)//{sessionId, userMessage}
-              //UI层:把临时发送中的气泡替换成真实消息对象，获取真实消息 ID，如果是新会话则获得 sessionId
-              break
-            //chunk触发时机:AI每生成一小段文字
-            case 'chunk':
-              callbacks.onChunk(data)//{content:"一小段文字，例如：你好，我是张三"}
-              //UI层:把这段文字追加到当前 AI 气泡的末尾，实现打字机效果
-              break
-            //done触发时机:AI生成完成,已存入数据库
-            case 'done':
-              callbacks.onDone(data)//{aiReply:{id, sender, content, time}}
-              //UI层:关闭加载状态，把 AI 气泡置为完成态，保存消息 ID
-              break
-            //error触发时机:任何一步出错,
-            case 'error':
-              callbacks.onError(data.message || '未知错误')//{message:"错误信息"}
-              //UI层:显示错误信息，关闭加载状态
-              break
-          }
-        } catch {
-          // 跳过解析失败的行
-        }
-        currentEvent = ''
+    try {
+      const data = JSON.parse(ev.data)
+      switch (ev.event) {
+        case 'meta':
+          callbacks.onMeta(data)
+          break
+        case 'chunk':
+          callbacks.onChunk(data)
+          break
+        case 'done':
+          callbacks.onDone(data)
+          break
+        case 'error':
+          callbacks.onError(data.message || '未知错误')
+          break
       }
+    } catch {
+      // JSON 解析失败的行静默跳过
     }
   }
 }
