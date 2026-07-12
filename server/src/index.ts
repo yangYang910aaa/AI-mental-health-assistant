@@ -1,4 +1,4 @@
-import Fastify from 'fastify'
+import Fastify, { type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
@@ -14,6 +14,7 @@ import { consultationsRoutes } from './routes/consultations.js'
 import { dashboardRoutes } from './routes/dashboard.js'
 import { chatRoutes } from './routes/chat.js'
 import { memoryRoutes } from './routes/memory.js'
+import { prisma } from './db.js'
 
 const app = Fastify({ logger: false, bodyLimit: 50 * 1024 * 1024 }) // 50MB，支持 base64 图片
 
@@ -40,12 +41,29 @@ await app.register(chatRoutes)//AI 聊天（DeepSeek）
 await app.register(memoryRoutes)//长期记忆管理
 
 // ==================== 全局错误处理 ====================
-app.setErrorHandler((error: { statusCode?: number; message?: string }, _request, reply) => {
-  console.error('[Server Error]', error.message ?? error)
-  const statusCode = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500
+app.setErrorHandler((error, _request, reply) => {
+  const err = error as FastifyError & { validation?: { instancePath?: string; message: string }[] }
+  console.error('[Server Error]', err.message ?? err)
+
+  const statusCode = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500
+
+  // Fastify 校验错误（FST_ERR_VALIDATION）包含字段级详情
+  // error.validation 是数组，每项有 instancePath（字段路径）和 message（原因）
+  if (err.validation && err.validation.length > 0) {
+    const fields = err.validation.map((v) => {
+      const field = v.instancePath ? v.instancePath.replace(/^\//, '') : ''
+      return field ? `${field}: ${v.message}` : v.message
+    })
+    return reply.status(400).send({
+      code: 400,
+      message: fields.join('；') || '请求参数有误',
+      data: null,
+    })
+  }
+
   reply.status(statusCode).send({
     code: statusCode,
-    message: statusCode < 500 ? (error.message || '请求失败') : '服务器繁忙，请稍后重试',
+    message: statusCode < 500 ? (err.message || '请求失败') : '服务器繁忙，请稍后重试',
     data: null,
   })
 })
@@ -55,3 +73,13 @@ const PORT = Number(process.env.PORT) || 3000
 await app.listen({ port: PORT, host: '0.0.0.0' })
 console.log(`后端已启动 → http://localhost:${PORT}`)
 console.log(`数据库地址 → ${process.env.DATABASE_URL?.replace(/\/\/.*@/, '//***@') || '未配置'}`)
+
+// ==================== 优雅关闭 ====================
+const shutdown = async (signal: string) => {
+  console.log(`\n收到 ${signal}，正在关闭...`)
+  await app.close()
+  await prisma.$disconnect()
+  process.exit(0)
+}
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))

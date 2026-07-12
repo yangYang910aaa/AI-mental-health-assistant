@@ -220,10 +220,14 @@ const openAddDialog = () => {
 
 // ==================== 发布 / 下线 ====================
 const handleStatusChange = async (row: Article) => {
-  const newStatus=row.status==='published'?'offline':'published'
-  await updateArticle(row.id,{status:newStatus})
-  ElMessage.success(newStatus==='published'?'已发布':'已下线')
-  loadData()
+  const newStatus = row.status === 'published' ? 'offline' : 'published'
+  try {
+    await updateArticle(row.id, { status: newStatus })
+    ElMessage.success(newStatus === 'published' ? '已发布' : '已下线')
+    loadData()
+  } catch {
+    // 拦截器已提示错误
+  }
 }
 
 // ==================== 删除文章 ====================

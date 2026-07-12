@@ -38,7 +38,7 @@ export class BusinessError extends Error {
 // ==================== 常量 ====================
 
 /** 基础 URL，后端 API 接口前缀 */
-const BASE_URL: string = '/api'
+export const BASE_URL: string = '/api'
 
 /** 扩展 Axios 配置：支持静默错误 */
 interface SilentConfig extends AxiosRequestConfig {
@@ -65,6 +65,7 @@ const handleUnauthorized = (message = '登录已过期，请重新登录'): Prom
   // 并发 401 防抖：同一时刻多个请求同时过期，只跳一次
   if (!isRedirecting) {
     isRedirecting = true
+    //不用router.push，因为会触发beforeEach，进而可能调用validateToken，再次触发401，导致循环跳转，路由状态混乱
     window.location.replace('/auth/login')
   }
 
@@ -148,7 +149,7 @@ http.interceptors.response.use(
     // 始终返回 AxiosResponse）。实际运行时返回值已经是 T（body.data 的解包结果）。
     // request.get/post<T> 的 `as Promise<T>` 与这里配合完成类型收敛。
     //
-    // 两条铁律（改这里前必须遵守）：
+    // 两条规则：
     // 1. 永远不要返回 body（整个 ApiResponse）——调用方期望的是 body.data
     // 2. 永远不要在这里抛异常（业务异常走 HTTP 状态码，已被失败分支拦截）
     if (code === 200) {

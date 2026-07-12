@@ -68,6 +68,10 @@ export const MOOD_LABEL_COLORS: Record<string, string> = {
   '恐惧': '#8b5cf6',
 }
 
+/** 情绪标签 → 颜色 */
+export const labelColor = (label: string): string =>
+  MOOD_LABEL_COLORS[label] || '#8b9e7e'
+
 /** 情绪评分 → 颜色 */
 export const moodScoreColor = (score: number): string =>
   score >= 7 ? '#52c41a' : score >= 4 ? '#faad14' : '#ff4d4f'

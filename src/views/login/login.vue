@@ -67,7 +67,7 @@
 
     <!-- ==================== 底部链接 ==================== -->
     <p class="footer-link">
-      没有账号？<router-link to="/auth/register">去注册</router-link>
+      没有账号？<router-link :to="{ name: ROUTE_NAMES.register }">去注册</router-link>
     </p>
   </div>
 </template>
@@ -118,8 +118,10 @@ const goForgot = () => {
     sessionStorage.setItem('login:pendingEmail', formData.username)
   }
   // 如果是邮箱格式，在忘记密码页自动填入邮箱
-  const query = formData.username.includes('@') ? '?email=' + encodeURIComponent(formData.username) : ''
-  router.push('/auth/forgot-password' + query)
+  router.push({
+    name: ROUTE_NAMES.forgotPassword,
+    query: formData.username.includes('@') ? { email: formData.username } : {},
+  })
 }
 
 // 登录逻辑

@@ -125,6 +125,12 @@
           <span class="dialog-header-text" >心情记录详情</span>
         </template>
 
+        <!-- 加载失败 -->
+        <div v-if="detailError" class="detail-error">
+          <p>加载失败，请稍后重试</p>
+          <el-button type="primary" size="small" @click="openDetail(detailErrorId)">重新加载</el-button>
+        </div>
+
         <div v-loading="detailLoading" class="detail-body" v-if="detailRecord">
           <!-- ===== 情绪仪表盘 ===== -->
           <div class="mood-hero">
@@ -226,11 +232,8 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
-import { MOOD_LABELS, MOOD_LABEL_COLORS, SCORE_MARKS, TRIGGER_OPTIONS } from '@/api/emotional'
-import { useUserStore } from '@/stores/user'
+import { MOOD_LABELS, labelColor, SCORE_MARKS, TRIGGER_OPTIONS } from '@/api/emotional'
 import { createMood, getUserMoods, getUserMoodDetail, deleteMood, type UserMoodItem, type UserMoodDetail } from '@/api/user'
-
-const userStore = useUserStore()
 
 // ==================== 表单状态 ====================
 const form = reactive({
@@ -257,9 +260,6 @@ const filterTriggers = (queryString: string, cb: (results: Array<{ value: string
   )
 }
 
-// 情绪标签颜色映射
-const labelColor = (label: string) => MOOD_LABEL_COLORS[label] || '#8b9e7e'
-
 /** AI 风险等级 → 背景色 */
 const analysisRiskColor = (level: string) => {
   if (level === '高') return '#fde8e8'
@@ -282,8 +282,7 @@ const selectedLabel = ref('')
 // 加载历史记录
 const loadHistory = async (page = 1) => {
   try {
-    const userId = userStore.userInfo?.id ?? 0
-    const result = await getUserMoods(userId, page, pageSize, selectedLabel.value || undefined)
+    const result = await getUserMoods(page, pageSize, selectedLabel.value || undefined)
     moodList.value = result.list
     total.value = result.total
   } catch {
@@ -307,7 +306,6 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     await createMood({
-      userId: userStore.userInfo?.id ?? 0,
       moodScore: form.moodScore,
       moodLabel: form.moodLabel,
       moodTrigger: form.moodTrigger || undefined,
@@ -331,15 +329,19 @@ const handleSubmit = async () => {
 const detailVisible = ref(false)
 const detailRecord = ref<UserMoodDetail | null>(null)
 const detailLoading = ref(false)
+const detailError = ref(false)
+const detailErrorId = ref(0)
 
 const openDetail = async (id: number) => {
   detailVisible.value = true
   detailLoading.value = true
   detailRecord.value = null
+  detailError.value = false
+  detailErrorId.value = id
   try {
     detailRecord.value = await getUserMoodDetail(id)
   } catch {
-    // 保留弹窗，让用户可以重试；拦截器已提示错误
+    detailError.value = true
   } finally {
     detailLoading.value = false
   }
@@ -577,6 +579,16 @@ onMounted(() => loadHistory())
 }
 .detail-body {
   padding: 0 4px;
+}
+
+.detail-error {
+  text-align: center;
+  padding: 48px 24px;
+  p {
+    color: #9ca3af;
+    font-size: 14px;
+    margin: 0 0 16px;
+  }
 }
 
 // ===== 情绪仪表盘 =====

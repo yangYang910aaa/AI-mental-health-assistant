@@ -8,6 +8,11 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // 密码重置邮件是低频单发操作，不需要连接池（pool 默认 false）
+  // 但要限制各阶段超时，避免 SMTP 服务器不可达时用户等 2 分钟
+  connectionTimeout: 10_000,  // 建立 TCP 连接最多 10 秒
+  greetingTimeout: 10_000,    // 等待 SMTP greeting 最多 10 秒
+  socketTimeout: 15_000,      // 连接空闲最多 15 秒
 })
 
 /**

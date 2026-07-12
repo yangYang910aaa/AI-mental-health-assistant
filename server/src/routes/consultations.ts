@@ -16,7 +16,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
   app.get('/api/consultations/records', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可查看咨询记录', data: null })
@@ -105,7 +105,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
   app.get('/api/consultations/records/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可查看咨询记录详情', data: null })
@@ -164,7 +164,7 @@ export async function consultationsRoutes(app: FastifyInstance) {
   app.delete('/api/consultations/records/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可删除咨询记录', data: null })

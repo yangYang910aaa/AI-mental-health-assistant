@@ -97,7 +97,7 @@
 
     <!-- ==================== 底部链接 ==================== -->
     <p class="footer-link">
-      已有账号？<router-link to="/auth/login">去登录</router-link>
+      已有账号？<router-link :to="{ name: ROUTE_NAMES.login }">去登录</router-link>
     </p>
   </div>
 </template>
@@ -174,7 +174,7 @@ const handleRegister = async () => {
       email: formData.email,
     })
     ElMessage.success('注册成功，请登录')
-    router.push({ name: ROUTE_NAMES.login })
+    router.push({ name: ROUTE_NAMES.login, query: { email: formData.email } })
   } catch {
     // 错误提示由 axios 响应拦截器统一处理，此处仅恢复按钮状态
   } finally {

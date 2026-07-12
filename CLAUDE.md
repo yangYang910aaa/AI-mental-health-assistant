@@ -69,6 +69,7 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   │   ├── file.ts                    # POST /api/file/upload（multipart + UUID 存储）
 │   │   ├── consultations.ts           # 管理端咨询记录（列表/详情/删除，需 admin，ChatSession + ChatMessage）
 │   │   ├── chat.ts                    # AI 聊天（会话列表/消息/发送 SSE 流式/删除，需登录，对接 DeepSeek API）
+│   │   ├── memory.ts                  # 长期记忆管理（列表/删除单条/清空，需登录）
 │   │   └── dashboard.ts               # 数据分析（KPI 聚合 + 趋势，需 admin，JS 端聚合避免 raw SQL 兼容性）
 │   ├── middleware/
 │   │   └── jwtAuth.ts                 # JWT 签发 signToken() + 必须登录 requireAuth
@@ -77,7 +78,7 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │       ├── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
 │       └── email.ts                   # sendResetEmail() —— nodemailer 发送 6 位验证码
 ├── prisma/
-│   ├── schema.prisma                  # 数据模型：User(email/resetToken/resetTokenExp) + MoodRecord + ChatSession + ChatMessage + Article
+│   ├── schema.prisma                  # 数据模型：User + MoodRecord + ChatSession + ChatMessage(flagged) + Article + Memory
 │   ├── seed.ts                        # 种子：11 用户 + 15 文章 + 50 心情 + 2 会话
 │   └── migrations/                    # Prisma 迁移历史
 ├── scripts/
@@ -140,9 +141,11 @@ src/
 │   │   └── tableSearch.vue          # 通用搜索表单（formItem 配置驱动）
 │   ├── user-page/
 │   │   └── userNav.vue              # 用户端顶栏导航（Logo + 链接 + 用户菜单）
+│   ├── profile/
+│   │   └── ProfilePage.vue         # 个人中心共享组件（头像/昵称/邮箱/密码，user/admin 两端复用）
 │   ├── dialog/
 │   │   ├── articleDialog.vue        # 文章新增/编辑弹窗（共用，含 wangEditor）
-│   │   ├── consultationDialog.vue   # 咨询详情弹窗（温暖治愈风聊天气泡）
+│   │   ├── consultationDialog.vue   # 咨询详情弹窗（温暖治愈风聊天气泡，含危机预警标签）
 │   │   └── emotionalDialog.vue      # 情绪详情弹窗（AI 分析 + 风险描述 + 专业建议）
 │
 └── views/
@@ -205,6 +208,7 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 /api/user/chat/sessions       用户聊天会话
 /api/user/chat/send           用户发送消息（SSE 流式）
 /api/user/mood                用户心情记录
+/api/user/memories            长期记忆管理
 ```
 
 每个模块一个前缀（`/knowledge/`、`/consultations/`、`/user/`），RESTful 风格：
@@ -231,7 +235,7 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 ```ts
 export const ROUTE_NAMES = {
   backLayout, dashboard, knowledge, consultations, emotional, adminProfile, // 管理端
-  userLayout, userHome, userChat, userMood, userArticles,           // 用户端
+  userLayout, userHome, userChat, userMood, userArticles, userMemory, // 用户端
   userArticleDetail, userProfile,
   login, register, forgotPassword,                                   // 认证
 } as const
@@ -251,6 +255,7 @@ router.push({ name: ROUTE_NAMES.knowledge })  // ✅ 用常量，不硬编码
 ```ts
 MOOD_LABELS        // 情绪标签数组
 MOOD_LABEL_COLORS  // 情绪标签 → 颜色映射（全项目唯一来源）
+labelColor()       // 情绪标签 → 颜色（userHome/userMood/emotionalDialog 共用）
 moodScoreColor()   // 情绪评分 → 颜色
 SCORE_MARKS        // 滑条 emoji 标记
 TRIGGER_OPTIONS    // 触发因素选项
@@ -270,7 +275,7 @@ TRIGGER_OPTIONS    // 触发因素选项
 
 采用 **6 位数字验证码** 方式（非邮件链接），单页面完成：
 
-1. 输入注册邮箱 → 获取验证码（60s 冷却，前后端双重限制）
+1. 输入注册邮箱 → 获取验证码（15 分钟冷却，前后端双重限制）
 2. 输入 6 位验证码 + 新密码 + 确认密码 → 重置
 3. 完成 → 跳回登录页（自动带回邮箱/用户名）
 
@@ -347,9 +352,9 @@ deleteArticle(id)               // DELETE /knowledge/articles/:id
 
 | 功能 | 说明 |
 |------|------|
-| 表格 | 对话用户、对话记录（两行：AI名称+时间 / 内容预览）、消息数量、开始时间 |
+| 表格 | 对话用户（含危机预警 ⚠ 图标）、对话记录（AI名称+时间 / 内容预览）、消息数量、开始时间 |
 | 分页 | 10/20/50 条，切换 pageSize 回第 1 页 |
-| 详情 | 打开 consultationDialog（按钮 loading 防重复点击） |
+| 详情 | 打开 consultationDialog（按钮 loading 防重复点击，消息含 crisis-tag） |
 | 删除 | 确认弹窗 → 删除 → 刷新（末页最后一条自动回上一页） |
 
 ### 详情弹窗 `consultationDialog.vue`
@@ -512,32 +517,38 @@ getDashboardData(range: '7d' | '30d' | '90d')  // GET /dashboard?range=30d
 
 ### 个人中心 `userProfile.vue` + `adminProfile.vue`
 
+两人页面合并为共享组件 `ProfilePage.vue`（`role` + `defaultInitial` props），各自路由文件只是 6 行薄壳。
 | 区域 | 内容 |
 |------|------|
-| 头像区 | 居中展示当前头像，hover 显示相机覆盖层，点击触发文件选择 → `uploadFile()` 上传 → `PUT /api/auth/profile` 保存 → `userStore.setUser()` 即时刷新导航栏 |
-| 基本资料 | 用户名（只读）、可编辑邮箱 + 保存按钮、可编辑昵称 + 保存按钮、角色标签 |
+| 头像区 | hover 相机覆盖层 → 文件选择 → `uploadFile()` → `PUT /api/auth/profile` → `userStore.setUser()` 刷新导航栏 |
+| 基本资料 | 用户名（只读）、可编辑邮箱/昵称 + 保存按钮、带 prop 的角色标签 |
 | 修改密码 | 旧密码 + 新密码 + 确认新密码，校验通过后 `PUT /api/auth/password` |
 
-共用逻辑抽取为 `useProfile` composable（头像/昵称/邮箱/密码），用户端和管理端复用。
+共用逻辑：`useProfile` composable（头像/昵称/邮箱/密码）+ `ProfilePage.vue`（模板/样式）。
 
 ### API `api/user.ts`
 
 ```ts
 // 类型
 HomeData { dailyQuote, stats: HomeStats, recentMoods, recentChats }
-HomeStats { todayMoodScore, todayMoodLabel, weekMoodCount, weekChatCount, weekAvgScore }
 ChatSession { id, title, lastMessage, lastTime, messageCount }
-ChatMessage { id, sender, content, time }
+ChatMessage { id, sender, content, time, error? }
 SendMessageResult { userMessage, aiReply }
-CreateMoodParams { userId, moodScore, moodLabel, content, ... }
+CreateMoodParams { moodScore, moodLabel, content, ... }     // userId 由 JWT 获取
+MoodAnalysis { primaryEmotion, emotionIntensity, riskLevel, emotionNature }
+MoodSuggestion { riskDescription, advice }
+MemoryItem { id, content, category, createdAt }
 
 // 接口
-getUserHome(userId)                   // GET /user/home
-getChatSessions(userId)              // GET /user/chat/sessions
+getUserHome()                        // GET /user/home（JWT）
+getChatSessions()                    // GET /user/chat/sessions（JWT）
 getChatMessages(sessionId)           // GET /user/chat/sessions/:id
-sendMessage(sessionId, content, uid) // POST /user/chat/send
-createMood(params)                   // POST /user/mood
-getUserMoods(userId, page, size)     // GET /user/mood
+sendMessageStream(sessionId, ...)    // POST /user/chat/send（SSE 流式）
+createMood(params)                   // POST /user/mood（JWT + 异步 AI 分析）
+getUserMoods(page, size, label)      // GET /user/mood（JWT）
+getMemories()                        // GET /user/memories
+deleteMemory(id)                     // DELETE /user/memories/:id
+clearMemories()                      // DELETE /user/memories
 ```
 
 ### Mock
@@ -555,7 +566,7 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/auth/me` | GET | ✅ 真实后端（JWT 验证 + 返回用户信息） |
 | `/api/auth/profile` | PUT | ✅ 真实后端（需登录，更新昵称/头像/邮箱） |
 | `/api/auth/password` | PUT | ✅ 真实后端（需登录，旧密码比对 + 更新） |
-| `/api/auth/forgot-password` | POST | ✅ 真实后端（nodemailer 发送 6 位验证码，60s 冷却） |
+| `/api/auth/forgot-password` | POST | ✅ 真实后端（nodemailer 发送 6 位验证码，15 分钟冷却） |
 | `/api/auth/reset-password` | POST | ✅ 真实后端（验证码 + 新密码，令牌一次性使用） |
 | `/api/knowledge/articles` | GET | ✅ 真实后端（分页 + title/category/status 筛选） |
 | `/api/knowledge/articles` | POST | ✅ 真实后端（admin 鉴权 + JSON Schema 校验） |
@@ -578,54 +589,32 @@ getUserMoods(userId, page, size)     // GET /user/mood
 | `/api/user/chat/sessions/:id` | PUT | ✅ 真实后端（重命名会话，上限 200 字符） |
 | `/api/user/chat/sessions/:id/pin` | PUT | ✅ 真实后端（切换置顶，返回新状态） |
 | `/api/user/chat/sessions/:id` | DELETE | ✅ 真实后端（归属权校验，级联删除消息） |
-| `/api/user/mood` | POST | ✅ 真实后端（JSON Schema 校验 + 创建记录） |
-| `/api/user/mood` | GET | ✅ 真实后端（分页 + userId 筛选 + moodLabel 筛选） |
-| `/api/user/mood/:id` | GET | ✅ 真实后端（返回全量字段含睡眠/压力/触发因素） |
-| `/api/user/mood/:id` | DELETE | ✅ 真实后端（ID 正整数校验 + 存在性检查） |
+| `/api/user/mood` | POST | ✅ 真实后端（JWT 认证 + JSON Schema 校验 + 异步 AI 分析） |
+| `/api/user/mood` | GET | ✅ 真实后端（JWT 认证 + 分页 + moodLabel 筛选） |
+| `/api/user/mood/:id` | GET | ✅ 真实后端（返回全量字段含 AI 分析） |
+| `/api/user/mood/:id` | DELETE | ✅ 真实后端（JWT 认证 + 存在性检查） |
+| `/api/user/memories` | GET | ✅ 真实后端（JWT 认证，返回当前用户全部记忆） |
+| `/api/user/memories/:id` | DELETE | ✅ 真实后端（JWT 认证 + 身份校验） |
+| `/api/user/memories` | DELETE | ✅ 真实后端（JWT 认证，清空全部记忆） |
 
-> ✅ = 真实后端（全部已完成，mock 插件可安全删除）
-
----
-
-## 接下来要做的事
-
-### ✅ 基础建设 —— 已全部完成
-
-- **全部接口迁移至真实后端**：vite.config.ts mock 插件已删除，所有 `/api/*` 由 Fastify 后端处理
-- **聊天核心链路**：SSE 流式 + DeepSeek V4 Pro + 深度思考 + 历史上下文 20 条
-- **会话管理**：重命名 / 置顶 / 删除，左侧列表排序（置顶优先）
-- **代码架构**：System Prompt 抽至 `server/src/prompts/system.ts`，`resolveSession` helper 消除路由重复代码
+> ✅ 全部已完成，mock 插件已删除。长期记忆、AI 情绪分析、危机标记均已落库并可前端交互。
 
 ---
 
-### 🥇 第一梯队：AI 对话体验提升
+## 项目当前状态
 
-| # | 功能 | 说明 | 改动范围 |
-|---|------|------|---------|
-| 1 | **用户信息注入** | 调用 `buildSystemPrompt()` 把用户昵称、近期情绪趋势注入 System Prompt，让 AI 叫得出用户名字、知道当前状态 | `chat.ts` POST /send |
-| 2 | **知识库文章注入**（轻量 RAG） | 用户消息关键词匹配 Article 表 → 文章摘要拼入 prompt，AI 回复有知识库支撑 | `chat.ts` + SQL `LIKE` |
+### ✅ 已完成全部三层梯队
 
-两项均**不需要新依赖**。
-
----
-
-### 🥈 第二梯队：功能完善
-
-| # | 功能 | 说明 |
-|---|------|------|
-| 3 | **对话自动摘要** | 会话关闭时 AI 生成 50 字摘要存 `ChatSession.summary` 字段 |
-| 4 | **危机标记** | AI 检测到高风险语言时 `ChatMessage.flagged = true`，管理端可预警 |
-| 5 | **AI 情绪分析** | 心情记录提交后调用 AI 生成 `aiAnalysis` / `aiSuggestion` |
-
----
-
-### 🥉 第三梯队：大工程
-
-| # | 功能 | 说明 |
-|---|------|------|
-| 6 | **语音输入/输出** | TTS + STT，对情绪宣泄场景非常有用 |
-| 7 | **心情记录联动** | 聊完天后 AI 主动问"要不要记录一下现在的心情？" |
-| 8 | **多轮长期记忆** | 跨会话记住用户关键信息（偏好、宠物名字、重要事件等） |
+| 梯队 | 功能 | 状态 |
+|------|------|------|
+| 🥇 | 用户信息注入——AI 知道用户昵称 + 近 7 天心情趋势 | ✅ |
+| 🥇 | 知识库 RAG——25 篇真实文章，用户原话直接匹配摘要 | ✅ |
+| 🥈 | 危机标记——31 关键词 + 软化词双轮匹配，管理端列表/详情双处预警 | ✅ |
+| 🥈 | AI 情绪分析——提交心情后异步生成 `aiAnalysis` + `aiSuggestion` | ✅ |
+| 🥈 | 对话自动摘要 | ❌ 不需要 |
+| 🥉 | 长期记忆——跨会话记住用户信息，提取→去重→检索全链路 | ✅ |
+| 🥉 | 语音、心情联动 | ❌ 不需要 |
+| 优化 | 鉴权补齐（mood/home +JWT）、文件保护、代码去重、错误 UX | ✅ |
 
 ---
 
@@ -667,6 +656,28 @@ getUserMoods(userId, page, size)     // GET /user/mood
 - **AI 对话接入**：对接 DeepSeek API（`deepseek-chat` 模型），System Prompt 定义"宁渡"角色，SSE 流式打字机效果，30s 超时保护
 - **chat.ts 删除会话**：新增 `DELETE /api/user/chat/sessions/:id`，归属权校验 + 级联删除消息
 - **userChat.vue 流式完善**：`sendMessageStream` 替代原 mock 延迟回复，支持 meta/chunk/done/error 四事件，乐观更新 + 打字机实时渲染
+- **长期记忆**：新增 `Memory` 表 + `ai/memory.ts` + `routes/memory.ts` + `userMemory.vue`，跨会话记住用户关键信息，提取→去重→检索全链路
+- **危机标记**：`ChatMessage.flagged` 字段 + `safety.ts` 31 关键词 + 软化词双轮匹配，管理端列表 ⚠ 图标 + 详情红标
+- **AI 情绪分析**：`mood.ts` 异步调用 DeepSeek 生成 `aiAnalysis`/`aiSuggestion`，用户端心情详情弹窗可查看
+- **知识库内容重写**：15 篇核心 + 10 篇补充，每篇含循证实践建议，原 placeholder 替换
+- **鉴权补齐**：`mood.ts` + `home.ts` 加 JWT 认证，userId 从令牌提取而非信任客户端传参
+- **client.ts 去重**：提取公共 `callDeepSeek()`，`streamChat`/`chat` 共享请求逻辑
+- **RAG 简化**：取消 2-gram 拆词 + 停用词过滤，直接用用户原话 `LIKE` 匹配文章
+- **记忆提取优化**：攒 ≥4 条用户消息才触发，减少无效 AI 调用
+- **标签重复**：`labelColor` 提取到 `api/emotional.ts` 一处定义，userHome/userMood/emotionalDialog 共用
+- **用户头像**：聊天页用户气泡显示上传头像而非永远首字符
+- **AI 头像**：暖金渐变底 + 太阳图标
+- **文章标签**：修复 `JSON.stringify` 双重编码导致 `v-for` 逐字符拆开；加 `flex-wrap` 防溢出
+- **心情详情**：加 `serialize()` tags 解析 + 加载失败显示「重新加载」按钮
+- **AI 回复失败**：聊天框显示红色气泡「AI 回复生成失败，请稍后重试」
+- **个人中心合并**：`userProfile.vue` + `adminProfile.vue` → 共享 `ProfilePage.vue`
+- **auth 注释**：60s→15 分钟冷却时间
+- **file 上传**：加 `mkdirSync` + pipeline try/catch
+- **dashboard 查询**：高风险分析加 90 天时间窗口 + `take: 10000`
+- **memory createdAt**：加 `formatDateTime()` 格式化，保持 API 响应一致
+- **forgotPassword**：空 catch 加 `ElMessage.error`
+- **userArticles**：加载时显示「加载中…」
+- **knowledge 状态切换**：加 try/catch，失败不弹假成功
 
 ---
 
@@ -707,9 +718,10 @@ getUserMoods(userId, page, size)     // GET /user/mood
                            └── 委托 ai/client.ts 调 DeepSeek
 
 server/src/ai/                        ← AI 核心模块
-├── client.ts            纯 API 调用：拼请求 → 调 DeepSeek V4 Pro → 解析 SSE
-├── context.ts           上下文拼装：System Prompt + 历史 + 知识库（扩展点）
-├── safety.ts            安全检测：危机关键词识别（扩展点）
+├── client.ts            纯 API 调用：streamChat() 流式 / chat() 非流式，共用 callDeepSeek()
+├── context.ts           上下文拼装：System Prompt + 历史 + 知识库 + 用户信息 + 长期记忆
+├── safety.ts            安全检测：31 关键词 + 软化词双轮匹配 → checkCrisis()
+├── memory.ts            长期记忆：extractMemories() 提取 / saveMemories() 去重存库 / getMemoryContext() 检索
 └── prompts/
     └── system.ts        System Prompt + buildSystemPrompt()
 ```
@@ -726,41 +738,38 @@ server/src/ai/                        ← AI 核心模块
 | 前端 API | `src/api/user.ts` | `sendMessageStream()` + CRUD 函数 | 加接口时改 |
 | 前端 UI | `src/views/user-page/userChat.vue` | 流式气泡、会话管理 | 改交互时改 |
 
-### 方案一：直调 LLM + 深度思考 ✅ 已实现
+### 方案一：直调 LLM + 深度思考 ✅
 
 `POST /api/user/chat/send` 完整流程：
 
-1. JWT 认证 → 确定 / 创建会话 → 保存用户消息到 `ChatMessage` 表
-2. 查询最近 20 条历史消息 → 委托 `ai/context.ts` 拼装完整 `messages[]`
-3. 委托 `ai/client.ts` 调 DeepSeek V4 Pro（`stream: true` + `thinking: enabled` + `reasoning_effort: medium`）
-4. SSE 流式推送：`event: meta` → `event: chunk`（逐字）→ `event: done` → `event: error`
-5. 保存 AI 回复到 MySQL，首条用户消息自动设为会话标题
+1. JWT 认证 → 确定 / 创建会话 → 保存用户消息 + **危机检测**（命中 → `flagged=true`）
+2. 并行查询：用户信息 + 近期心情 + 历史 20 条 + 知识库文章 + **长期记忆**
+3. `ai/context.ts` 拼装完整 `messages[]`（System Prompt + 用户上下文 + 记忆 + 知识库 + 历史）
+4. `ai/client.ts` 调 DeepSeek V4 Pro（`stream: true` + `thinking: enabled` + `reasoning_effort: medium`）
+5. SSE 流式推送：`event: meta` → `event: chunk` → `event: done`（失败则推送 error + 红色气泡）
+6. 保存 AI 回复 → 首条用户消息自动设为会话标题
+7. SSE 结束后异步提取长期记忆（攒 ≥4 条用户消息才触发）
 
 **模型参数**：`temperature: 0.7` / `max_tokens: 800` / `top_p: 0.9`
 
-**深度思考**：默认开启，模型在后台推理（reasoning_content 不展示给用户），提升共情质量和安全判断。通过 `deepThinking: boolean` 可切换。
+### 方案二：用户信息注入 ✅
 
-### 方案二：+ 用户信息注入（下一步）
+`chat.ts` 中并行查 User 表（昵称）+ MoodRecord 表（近 7 天记录）→ 构造 `userContext` → 传入 `buildSystemPrompt()` → AI 回复自然引用用户情绪状态。
 
-调用 `buildSystemPrompt({ nickname, recentMood, recentIssues })` → 注入 System Prompt。
-已有扩展点：`ai/context.ts` 的 `BuildContextInput.userContext`。
+### 方案三：知识库注入（轻量 RAG）✅
 
-### 方案三：+ 知识库注入（下一步）
+用户原话 `LIKE` 匹配 Article 表的 `title` + `summary` → 最多 3 篇 → `knowledgeSnippets` 注入 prompt。25 篇真实内容覆盖焦虑、抑郁、CBT、睡眠、正念、社交焦虑等话题。
 
-关键词匹配 Article 表 → 文章摘要注入 prompt → AI 回答有知识库支撑。
+### 方案四：长期记忆 ✅
 
-### 方案四：+ Agent 工具调用
+`ai/memory.ts`——提取：每轮对话后 AI 扫描抽取可记忆信息 → 5 字去重 → 存 `Memory` 表（上限 50 条）。检索：下次对话时取全部记忆 → 分类分组 → 注入 System Prompt。用户可在「记忆管理」页查看/删除/清空。
+
+### 方案五：Agent 工具调用（未来扩展点）
 
 给 AI 配 Function Calling / Tool Use：
 - `getMoodHistory(days)` → 查用户近期情绪趋势
 - `searchKnowledge(query)` → 搜知识库
 - `suggestExercise(type)` → 推荐呼吸法/正念练习
-
-### 分步实施建议
-
-1. ✅ 所有 CRUD 接口迁移完成，会话和消息已持久化
-2. ✅ DeepSeek API 已接入（方案一），基础对话流畅
-3. 效果满意后按需升级到方案二/三
 
 ---
 

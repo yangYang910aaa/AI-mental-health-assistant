@@ -12,7 +12,7 @@ export async function emotionalRoutes(app: FastifyInstance) {
   app.get('/api/emotional/records', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可查看情绪日志', data: null })
@@ -70,7 +70,7 @@ export async function emotionalRoutes(app: FastifyInstance) {
   app.get('/api/emotional/records/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可查看情绪日志详情', data: null })
@@ -110,7 +110,7 @@ export async function emotionalRoutes(app: FastifyInstance) {
   app.delete('/api/emotional/records/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可删除情绪日志', data: null })

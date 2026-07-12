@@ -5,6 +5,12 @@ import { prisma } from '../db.js'
 import { signToken, requireAuth } from '../middleware/jwtAuth.js'
 import { sendResetEmail } from '../utils/email.js'
 
+//验证邮箱格式是否正确
+const isValidEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+//统一延迟函数：用于防止暴力破解密码或验证码，延迟响应时间
+const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
+
 // ==================== JSON Schema 校验 ====================
 
 const loginBodySchema = {
@@ -73,33 +79,37 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/register', { schema: { body: registerBodySchema } }, async (request, reply) => {
     const { username, password, email, nickname } = request.body as { username: string; password: string; email: string; nickname?: string }
 
-    // 1.检查用户名是否已存在
-    const exists = await prisma.user.findUnique({ where: { username } })
-    if (exists) {
-      return reply.status(409).send({ code: 409, message: '用户名已存在', data: null })
+    // 1.校验用户名或邮箱是否已存在
+    const existingUser = await prisma.user.findFirst({ where: { OR: [{ username }, { email }] } })
+    if (existingUser) {
+      //无论是什么重复，都返回同样的提示，防止用户枚举
+      return reply.status(409).send({ code: 409, message: '用户名或邮箱已被使用,请更换', data: null })
     }
 
-    // 2.校验邮箱格式 + 去重
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // 2.校验邮箱格式是否正确
+    if(!isValidEmail(email)){
       return reply.status(400).send({ code: 400, message: '邮箱格式不正确', data: null })
     }
-    const emailExists = await prisma.user.findUnique({ where: { email } })
-    if (emailExists) {
-      return reply.status(409).send({ code: 409, message: '该邮箱已被注册', data: null })
-    }
-
+     
     // 3.创建用户
     const passwordHash = await bcrypt.hash(password, 10)
-    await prisma.user.create({
-      data: { username, passwordHash, nickname: nickname?.trim() || username, role: 'user', email },
-    })
-
+    try {
+      await prisma.user.create({
+        data: { username, passwordHash, nickname: nickname?.trim() || username, role: 'user', email },
+      })
+    } catch (err: any) {
+      // Prisma 唯一约束冲突（并发注册 / findFirst 和 create 之间的竞态）
+      if (err?.code === 'P2002') {
+        return reply.status(409).send({ code: 409, message: '用户名或邮箱已被使用,请更换', data: null })
+      }
+      throw err // 其他错误（DB 断连等）抛给全局 errorHandler
+    }
     return reply.send({ code: 200, message: '注册成功', data: null })
   })
 
   // ========== 登录验证 /api/auth/me —— 验证 token 有效性 ==========
   app.get('/api/auth/me', { preHandler: [requireAuth] }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
     if (!dbUser) {
@@ -145,12 +155,12 @@ export async function authRoutes(app: FastifyInstance) {
     schema: { body: updateProfileBodySchema },
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number }
+    const user = request.user
     const body = request.body as { nickname?: string; avatar?: string; email?: string }
 
     // 邮箱变更：校验格式 + 去重
     if (body.email !== undefined) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+      if (!isValidEmail(body.email)) {
         return reply.status(400).send({ code: 400, message: '邮箱格式不正确', data: null })
       }
       const existing = await prisma.user.findUnique({ where: { email: body.email } })
@@ -161,7 +171,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     // 部分更新：只更新传入的字段
     const data: Record<string, unknown> = {}
-    if (body.nickname !== undefined) data.nickname = body.nickname
+    if (body.nickname !== undefined) data.nickname = body.nickname.trim()
     if (body.avatar !== undefined)   data.avatar   = body.avatar
     if (body.email !== undefined)    data.email    = body.email
 
@@ -190,23 +200,28 @@ export async function authRoutes(app: FastifyInstance) {
     schema: { body: changePasswordBodySchema },
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number }
+    const user = request.user
     const { oldPassword, newPassword } = request.body as { oldPassword: string; newPassword: string }
 
-    if (oldPassword === newPassword) {
-      return reply.status(400).send({ code: 400, message: '新密码不能与旧密码相同', data: null })
-    }
-
+    // 1.先查用户
     const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
     if (!dbUser) {
       return reply.status(404).send({ code: 404, message: '用户不存在', data: null })
     }
 
+    // 2.验证旧密码是否正确
     const valid = await bcrypt.compare(oldPassword, dbUser.passwordHash)
     if (!valid) {
       return reply.status(400).send({ code: 400, message: '原密码错误', data: null })
     }
 
+    // 3.旧密码正确后，再判断"新旧密码是否相同"
+    const isSameAsOld = await bcrypt.compare(newPassword, dbUser.passwordHash)
+    if (isSameAsOld) {
+      return reply.status(400).send({ code: 400, message: '新密码不能与旧密码相同', data: null })
+    }
+
+    // 4.更新密码
     const passwordHash = await bcrypt.hash(newPassword, 10)
     await prisma.user.update({ where: { id: user.userId }, data: { passwordHash } })
 
@@ -217,7 +232,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/forgot-password', async (request, reply) => {
     const { email } = request.body as { email: string }
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || !isValidEmail(email)) {
       return reply.status(400).send({ code: 400, message: '请输入有效的邮箱地址', data: null })
     }
 
@@ -225,8 +240,8 @@ export async function authRoutes(app: FastifyInstance) {
     const user = await prisma.user.findUnique({ where: { email } })
 
     if (user) {
-      // 60 秒冷却：防止重复点击导致邮件轰炸
-      if (user.resetTokenExp && user.resetTokenExp.getTime() > Date.now() - 14 * 60 * 1000) {
+      // 只要验证码未过期，就不允许重复发送验证码
+      if (user.resetTokenExp && user.resetTokenExp.getTime() > Date.now()) {
         return reply.send({ code: 200, message: '若该邮箱已注册，验证码已发送', data: null })
       }
 
@@ -247,8 +262,13 @@ export async function authRoutes(app: FastifyInstance) {
           where: { id: user.id },
           data: { resetToken: null, resetTokenExp: null },
         })
+        // 随机延迟 0.2~0.5 秒，防止暴力破解验证码
+        await sleep(200 + Math.random() * 300)
         return reply.status(500).send({ code: 500, message: '邮件发送失败，请稍后重试', data: null })
       }
+    }else{
+      //用户不存在时,模拟发送成功,但不保存验证码
+      await sleep(200 + Math.random() * 300) 
     }
 
     return reply.send({ code: 200, message: '若该邮箱已注册，验证码已发送', data: null })
@@ -272,6 +292,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const valid = await bcrypt.compare(code, user.resetToken)
     if (!valid) {
+      await sleep(200 + Math.random() * 300) // 随机延迟 0.2~0.5 秒，防止暴力破解验证码
       return reply.status(400).send({ code: 400, message: '验证码错误', data: null })
     }
 

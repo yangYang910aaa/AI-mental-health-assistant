@@ -17,8 +17,11 @@
       </el-select>
     </div>
 
+    <!-- 加载中 -->
+    <div v-if="loading" class="loading-state">加载中…</div>
+
     <!-- ==================== 文章卡片列表 ==================== -->
-    <div v-if="articles.length" class="article-grid">
+    <div v-else-if="articles.length" class="article-grid">
       <div
         v-for="article in articles"
         :key="article.id"
@@ -218,6 +221,13 @@ onMounted(() => loadArticles())
         color: #c4bfb4;
       }
     }
+  }
+
+  .loading-state {
+    text-align: center;
+    padding: 48px;
+    color: #9ca3af;
+    font-size: 14px;
   }
 
   .empty-list {

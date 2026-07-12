@@ -37,7 +37,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
   app.get('/api/dashboard', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可查看数据分析', data: null })
@@ -55,6 +55,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
     const [
       totalUsers,
       totalEmotional,
@@ -71,9 +74,11 @@ export async function dashboardRoutes(app: FastifyInstance) {
       prisma.chatSession.count(),
       prisma.chatSession.count({ where: { createdAt: { gte: todayStart } } }),
       prisma.moodRecord.aggregate({ _avg: { moodScore: true } }),
-      // aiAnalysis 全量（高风险计数 + 风险分布复用，避免 JSON_EXTRACT 兼容性问题）
+      // aiAnalysis —— 只取近 90 天（高风险计数 + 风险分布复用）
       prisma.moodRecord.findMany({
+        where: { createdAt: { gte: ninetyDaysAgo } },
         select: { aiAnalysis: true },
+        take: 10000,  // 安全上限，防止超大数据集
       }),
       prisma.moodRecord.groupBy({
         by: ['userId'],

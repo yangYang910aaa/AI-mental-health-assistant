@@ -23,7 +23,7 @@ export const useUserStore = defineStore('user', () => {
   const isLoggedIn = computed(() => userInfo.value !== null)
 
   /** 显示名称：优先 nickname，其次 username */
-  const displayName = computed(() => userInfo.value?.nickname || userInfo.value?.username || '')
+  const displayName = computed(() => userInfo.value?.nickname || userInfo.value?.username || '匿名用户')
 
   // ==================== 操作 ====================
 

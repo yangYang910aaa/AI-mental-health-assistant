@@ -86,7 +86,7 @@
             </el-avatar>
           </div>
           <div class="bubble-content">
-            <div class="bubble-text">{{ msg.content }}</div>
+            <div class="bubble-text" :class="{ error: msg.error }">{{ msg.content }}</div>
             <span class="bubble-time">{{ msg.time.slice(11, 16) }}</span>
           </div>
         </div>
@@ -286,9 +286,13 @@ const handleSend = async () => {
     },
 
     onError(message) {
-      // 移除空的 AI 气泡
+      // 把空的 AI 气泡替换为错误提示
       if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
-        messages.value.splice(aiBubbleIndex, 1)
+        messages.value[aiBubbleIndex] = {
+          ...messages.value[aiBubbleIndex],
+          content: 'AI 回复生成失败，请稍后重试',
+          error: true,
+        }
       }
       console.error('[Chat] 流式发送失败:', message)
       aiLoading.value = false
@@ -575,6 +579,13 @@ watch(activeSessionId, () => scrollToBottom())
         font-size: 14px;
         line-height: 1.6;
         color: #374151;
+
+        &.error {
+          background: #fef0f0 !important;
+          color: #e84747;
+          border-radius: 4px 16px 16px 16px !important;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
 
         &.typing {
           display: flex;

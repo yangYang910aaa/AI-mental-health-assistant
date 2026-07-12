@@ -113,7 +113,7 @@ import VChart from 'vue-echarts'
 import { ROUTE_NAMES } from '@/router'
 import { useUserStore } from '@/stores/user'
 import { getUserHome, type HomeData, type HomeStats } from '@/api/user'
-import { MOOD_LABEL_COLORS } from '@/api/emotional'
+import { labelColor } from '@/api/emotional'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -153,9 +153,6 @@ const weekAvgStyle = computed(() => {
   if (s >= 4) return { color: '#faad14', label: '需要关注', iconBg: { background: '#fef3e2', color: '#faad14' } }
   return { color: '#ff4d4f', label: '建议寻求帮助', iconBg: { background: '#fde8e8', color: '#ff4d4f' } }
 })
-
-// 情绪标签颜色映射：根据情绪标签返回对应颜色（默认 #8b9e7e）
-const labelColor = (label: string) => MOOD_LABEL_COLORS[label] || '#8b9e7e'
 
 // 格式化时间：xx 分钟前 或 xx 小时前 或 xxxx-xx-xx
 const formatTime = (time: string) => {
@@ -217,8 +214,7 @@ const trendOption = computed(() => {
 // 加载用户首页数据
 const loadData = async () => {
   try {
-    const userId = userStore.userInfo?.id ?? 0
-    homeData.value = await getUserHome(userId)
+    homeData.value = await getUserHome()
   } catch { 
     homeData.value = null
    }

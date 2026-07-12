@@ -1,4 +1,5 @@
-import request from '@/utils/request'
+import { useUserStore } from '@/stores/user'
+import request, { BASE_URL } from '@/utils/request'
 
 // 请求参数类型
 interface LoginParams {
@@ -41,25 +42,34 @@ export const registerApi = (params: RegisterParams) =>
 export const validateToken = async (): Promise<UserInfo | null> => {
   const token = localStorage.getItem('token')
   if (!token) return null
+  // 设置超时，防止接口因为死锁或者网络抖动导致前台卡死。
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 5000) // 设置 5 秒超时
   try {
-    const res = await fetch('/api/auth/me', {
+    //用原生的fetch，不用封装的request.ts。防止因为token过期导致的router状态混乱
+    const res = await fetch(`${BASE_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     if (!res.ok) return null
     const body = await res.json()
     if (body.code !== 200) return null
     // 同步更新 localStorage 中的 userInfo
-    localStorage.setItem('userInfo', JSON.stringify(body.data))
+    const userStore = useUserStore()
+    userStore.setUser(body.data as UserInfo)
     return body.data as UserInfo
-  } catch {
+  } catch{
+    clearTimeout(timeoutId)
     return null
   }
 }
 
 /** 退出登录：清除本地状态 + 跳转登录页 */
 export const logout = () => {
+  const userStore = useUserStore()
+  userStore.clearUser()
   localStorage.removeItem('token')
-  localStorage.removeItem('userInfo')
   window.location.href = '/auth/login'
 }
 

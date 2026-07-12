@@ -6,7 +6,7 @@
       <span>返回登录</span>
     </div>
 
-    <!-- 品牌区 -->
+    <!-- 忘记密码标题 -->
     <div class="brand">
       <h1 class="brand-title">忘记密码</h1>
       <p class="brand-desc" v-if="step === 1">输入注册邮箱，获取验证码</p>
@@ -127,6 +127,7 @@
 import { reactive, ref, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Message, Key, Lock, Back, SuccessFilled } from '@element-plus/icons-vue'
 import { ROUTE_NAMES } from '@/router'
 import { forgotPassword, resetPassword } from '@/api/auth'
@@ -229,10 +230,11 @@ const handleReset = async () => {
   try {
     await resetPassword(formData.email, formData.code, formData.newPassword)
     step.value = 3
-  } catch (err) {
-    if (!(err instanceof BusinessError)) {
-      // 非业务错误由拦截器处理
+  } catch (err: any) {
+    if (err instanceof BusinessError) {
+      ElMessage.error(err.message || '重置密码失败')
     }
+    // 非业务错误由拦截器处理（已弹 toast）
   } finally {
     resetting.value = false
   }

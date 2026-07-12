@@ -18,6 +18,7 @@ model User {
   resetToken    String?   @db.VarChar(255)
   resetTokenExp DateTime?
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   moods          MoodRecord[]
   chatSessions   ChatSession[]
@@ -39,6 +40,8 @@ model MoodRecord {
   createdAt      DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 // ==================== 长期记忆 ====================
@@ -50,6 +53,8 @@ model Memory {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 // ==================== 聊天会话 ====================
@@ -62,6 +67,8 @@ model ChatSession {
 
   user     User          @relation(fields: [userId], references: [id])
   messages ChatMessage[]
+
+  @@index([userId])
 }
 
 // ==================== 聊天消息 ====================
@@ -74,6 +81,8 @@ model ChatMessage {
   createdAt DateTime  @default(now())
 
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 // ==================== 知识文章 ====================

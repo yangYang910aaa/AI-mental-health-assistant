@@ -4,7 +4,7 @@ import { validateToken } from '@/api/auth'
 // 路由名称常量，方便全局引用和跳转
 export const ROUTE_NAMES = {
   // 后台路由
-  backLayout: 'backL',
+  backLayout: 'backLayout',
   dashboard: 'dashboard',
   knowledge: 'knowledge',
   consultations: 'consultations',
@@ -24,6 +24,8 @@ export const ROUTE_NAMES = {
   login: 'login',
   register: 'register',
   forgotPassword: 'forgotPassword',
+  // 404 未匹配路由
+  notFound: 'notFound',
 } as const
 
 // 定义路由
@@ -31,14 +33,29 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     // 根路径 → 登录页
-    { path: '/', redirect: '/auth/login' },
+    { path: '/', redirect:{ name:ROUTE_NAMES.login } },
 
     // ==================== 管理后台 ====================
     {
       path: '/back',
       name: ROUTE_NAMES.backLayout,
       component: () => import('@/layouts/adminLayout.vue'),
-      redirect: '/back/dashboard',
+      redirect:{name:ROUTE_NAMES.dashboard},
+      meta:{requiresAuth:true},
+      beforeEnter:(_to,_from,next)=>{
+        //只保留admin校验,token校验在beforeEach中处理
+        try{
+          const raw=localStorage.getItem('userInfo')
+          const userInfo=raw? JSON.parse(raw) : null
+          if(!userInfo?.roles?.includes('admin')){
+            // 非管理员用户，重定向到登录页
+            return next({name:ROUTE_NAMES.login})
+          }
+          next()
+        }catch{
+          next({name:ROUTE_NAMES.login})
+        }
+      },
       children: [
         {
           path: 'dashboard',
@@ -78,7 +95,8 @@ const router = createRouter({
       path: '/user',
       name: ROUTE_NAMES.userLayout,
       component: () => import('@/layouts/userLayout.vue'),
-      redirect: '/user/home',
+      redirect:{name:ROUTE_NAMES.userHome},
+      meta:{requiresAuth:true},
       children: [
         {
           path: 'home',
@@ -128,29 +146,35 @@ const router = createRouter({
     // ==================== 认证 ====================
     {
       path:'/auth',
-      name:'auth',
+      name:ROUTE_NAMES.authLayout,
       component:()=>import('@/layouts/authLayout.vue'),
       children:[
         {
           path:'login',
-          name:'login',
+          name:ROUTE_NAMES.login,
           component:()=>import('@/views/login/login.vue'),
           meta:{title:'登录'}
         },
         {
           path:'register',
-          name:'register',
+          name:ROUTE_NAMES.register,
           component:()=>import('@/views/login/register.vue'),
           meta:{title:'注册'}
         },
         {
           path:'forgot-password',
-          name:'forgotPassword',
+          name:ROUTE_NAMES.forgotPassword,
           component:()=>import('@/views/login/forgotPassword.vue'),
           meta:{title:'忘记密码'}
         }
       ]
-    }
+    },
+    {
+      // 404 未匹配路由
+      path: '/:pathMatch(.*)*',
+      name: ROUTE_NAMES.notFound,
+      component: () => import('@/views/NotFound.vue'),
+    },
   ],
 })
 
@@ -176,45 +200,24 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  // —— /back/* 后台路由：需登录 + 管理员角色 ——
-  if (to.path.startsWith('/back')) {
-    if (!tokenValid && !token) {
-      next({ path: '/auth/login', query: { redirect: to.fullPath } })
-      return
-    }
-    try {
-      const raw = localStorage.getItem('userInfo')
-      const userInfo = raw ? JSON.parse(raw) : null
-      if (!userInfo?.roles?.includes('admin')) {
-        next({ path: '/auth/login' })
-        return
-      }
-    } catch {
-      next({ path: '/auth/login' })
-      return
+  // 统一拦截需要登录的页面
+  if(to.matched.some(record=>record.meta.requiresAuth)){
+    if(!tokenValid && !token){
+      return next({name:ROUTE_NAMES.login,query:{redirect:to.fullPath}})
     }
   }
-
-  // —— /user/* 用户端路由：需登录 ——
-  if (to.path.startsWith('/user')) {
-    if (!tokenValid && !token) {
-      next({ path: '/auth/login', query: { redirect: to.fullPath } })
-      return
-    }
-  }
-
   // —— /auth/* 认证路由：已登录则按角色分流 ——
   if (to.path.startsWith('/auth') && token && tokenValid) {
     try {
       const raw = localStorage.getItem('userInfo')
       const userInfo = raw ? JSON.parse(raw) : null
       if (userInfo?.roles?.includes('admin')) {
-        next({ path: '/back/dashboard' })
+        next({name:ROUTE_NAMES.dashboard})
       } else {
-        next({ path: '/user/home' })
+        next({ name:ROUTE_NAMES.userHome })
       }
     } catch {
-      next({ path: '/user/home' })
+      next({ name:ROUTE_NAMES.userHome })
     }
     return
   }

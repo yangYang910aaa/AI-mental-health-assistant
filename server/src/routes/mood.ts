@@ -1,21 +1,26 @@
 /**
  * 心情记录路由 —— 用户端创建 / 列表 / 详情 / 删除心情记录。
  * POST 创建时异步调用 AI 生成情绪分析和专业建议。
+ * 全部接口需 JWT 登录，userId 从令牌提取。
  */
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db.js'
+import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 import { chat } from '../ai/client.js'
+
+/** 从 JWT 载荷中提取 userId */
+const getUserId = (request: any): number =>
+  (request.user as { userId: number }).userId
 
 // ==================== JSON Schema 校验 ====================
 
 /** POST 创建心情记录的请求体校验规则 */
 const createMoodBodySchema = {
   type: 'object',
-  required: ['userId', 'moodScore', 'moodLabel'],
+  required: ['moodScore', 'moodLabel'],
   properties: {
-    userId:        { type: 'number' },
     moodScore:     { type: 'number', minimum: 1, maximum: 10 },
     moodLabel:     { type: 'string', minLength: 1 },
     moodTrigger:   { type: 'string' },
@@ -115,12 +120,14 @@ const analyzeMoodAsync = (recordId: number, data: {
 
 export async function moodRoutes(app: FastifyInstance) {
 
+  app.addHook('onRequest', requireAuth)   // 全部接口需登录
+
   // ========== POST /api/user/mood —— 创建心情记录 ==========
   app.post('/api/user/mood', {
-    schema: { body: createMoodBodySchema },               // Fastify 内置 JSON Schema 校验
+    schema: { body: createMoodBodySchema },
   }, async (request, reply) => {
+    const userId = getUserId(request)
     const body = request.body as {
-      userId: number
       moodScore: number
       moodLabel: string
       content?: string
@@ -132,7 +139,7 @@ export async function moodRoutes(app: FastifyInstance) {
     // 写入心情记录，aiAnalysis / aiSuggestion 先留空
     const record = await prisma.moodRecord.create({
       data: {
-        userId:        body.userId,
+        userId,
         moodScore:     body.moodScore,
         moodLabel:     body.moodLabel,
         content:       body.content       ?? '',
@@ -155,15 +162,11 @@ export async function moodRoutes(app: FastifyInstance) {
     return reply.send({ code: 200, message: '记录成功', data: null })
   })
 
-  // ========== GET /api/user/mood —— 心情记录列表（按 userId 筛选，分页） ==========
+  // ========== GET /api/user/mood —— 心情记录列表（自己的记录，分页） ==========
   app.get('/api/user/mood', async (request, reply) => {
-    const { userId: userIdStr, moodLabel, page: pageStr, pageSize: pageSizeStr } =
-      request.query as { userId?: string; moodLabel?: string; page?: string; pageSize?: string }
-
-    const userId = Number(userIdStr)
-    if (isNaN(userId) || userId <= 0) {
-      return reply.status(400).send({ code: 400, message: '用户ID必须是正整数', data: null })
-    }
+    const userId = getUserId(request)
+    const { moodLabel, page: pageStr, pageSize: pageSizeStr } =
+      request.query as { moodLabel?: string; page?: string; pageSize?: string }
 
     const page = Math.max(Number(pageStr) || 1, 1)
     const pageSize = Math.min(Math.max(Number(pageSizeStr) || 10, 1), 100)  // 限制 1-100

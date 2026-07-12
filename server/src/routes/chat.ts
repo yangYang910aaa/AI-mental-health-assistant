@@ -8,7 +8,7 @@ import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 import { streamChat } from '../ai/client.js'
-import { buildContext, extractKeywords } from '../ai/context.js'
+import { buildContext } from '../ai/context.js'
 import { checkCrisis } from '../ai/safety.js'
 import { getMemoryContext, extractMemories, saveMemories } from '../ai/memory.js'
 
@@ -160,10 +160,7 @@ export async function chatRoutes(app: FastifyInstance) {
 
     // ===== 3. 查询用户信息 + 近期心情 + 知识库 + 历史 → 拼装上下文 =====
 
-    // 3a. 提取关键词
-    const keywords = extractKeywords(content)
-
-    // 3b. 并行查询四路数据
+    // 3a. 并行查询四路数据
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const [user, recentMoods, recent, articles] = await Promise.all([
       // ① 用户昵称
@@ -183,20 +180,18 @@ export async function chatRoutes(app: FastifyInstance) {
         orderBy: { createdAt: 'desc' }, take: 20,
         select: { sender: true, content: true },
       }),
-      // ④ 知识库文章匹配（关键词为空时跳过）
-      keywords.length > 0
-        ? prisma.article.findMany({
-            where: {
-              status: 'published',
-              OR: keywords.flatMap((kw) => [
-                { title: { contains: kw } },
-                { summary: { contains: kw } },
-              ]),
-            },
-            select: { title: true, summary: true, category: true },
-            take: 3,
-          })
-        : Promise.resolve([] as Array<{ title: string; summary: string | null; category: string }>),
+      // ④ 知识库文章——直接用用户原文匹配，不拆词
+      prisma.article.findMany({
+        where: {
+          status: 'published',
+          OR: [
+            { title: { contains: content } },
+            { summary: { contains: content } },
+          ],
+        },
+        select: { title: true, summary: true, category: true },
+        take: 3,
+      }),
     ])
 
     // 3c. 构造用户上下文
@@ -307,18 +302,21 @@ export async function chatRoutes(app: FastifyInstance) {
 
     rawReply.end()   // 关闭 SSE 连接
 
-    // 异步提取长期记忆（取本轮用户消息 + AI 回复，不阻塞响应）
+    // 异步提取长期记忆——攒够 4 条用户消息才触发，减少无效 AI 调用
     if (aiContent) {
-      const recentForMemory = history
-        .slice(-6)
-        .map((m: { sender: string; content: string }) => ({
-          sender: m.sender, content: m.content,
-        }))
-      recentForMemory.push({ sender: 'user', content })
-      recentForMemory.push({ sender: 'assistant', content: aiContent })
-      extractMemories(recentForMemory.filter((m) => m.content))
-        .then((items) => saveMemories(userId, items))
-        .catch((e: Error) => console.error('[Chat] 记忆提取失败:', e.message))
+      const userMsgCount = history.filter((m: { sender: string }) => m.sender === 'user').length + 1 // +1 = 本轮用户消息
+      if (userMsgCount >= 4) {
+        const recentForMemory = history
+          .slice(-6)
+          .map((m: { sender: string; content: string }) => ({
+            sender: m.sender, content: m.content,
+          }))
+        recentForMemory.push({ sender: 'user', content })
+        recentForMemory.push({ sender: 'assistant', content: aiContent })
+        extractMemories(recentForMemory.filter((m) => m.content))
+          .then((items) => saveMemories(userId, items))
+          .catch((e: Error) => console.error('[Chat] 记忆提取失败:', e.message))
+      }
     }
   })
 

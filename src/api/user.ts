@@ -43,6 +43,7 @@ export interface ChatMessage {
   sender: 'user' | 'assistant'
   content: string
   time: string
+  error?: boolean
 }
 
 /** 聊天会话 */
@@ -72,9 +73,9 @@ export interface StreamCallbacks {
 
 // ==================== 接口 ====================
 
-/** 获取用户首页数据 */
-export const getUserHome = (userId: number) =>
-  request.get<HomeData>('/user/home', { params: { userId } })
+/** 获取用户首页数据（userId 由后端从 JWT 获取） */
+export const getUserHome = () =>
+  request.get<HomeData>('/user/home')
 
 /** 获取用户聊天会话列表（userId 由后端从 JWT 获取，前端传参向后兼容） */
 export const getChatSessions = (userId?: number) =>
@@ -190,7 +191,6 @@ export const deleteChatSession = (sessionId: number) =>
 
 /** 创建心情记录参数 */
 export interface CreateMoodParams {
-  userId: number
   moodScore: number
   moodLabel: string
   content: string
@@ -240,9 +240,9 @@ export interface UserMoodListResult {
 export const createMood = (params: CreateMoodParams) =>
   request.post<void>('/user/mood', params)
 
-/** 获取用户心情记录列表，可按情绪标签筛选 */
-export const getUserMoods = (userId: number, page: number, pageSize: number, moodLabel?: string) =>
-  request.get<UserMoodListResult>('/user/mood', { params: { userId, page, pageSize, moodLabel } })
+/** 获取当前用户的心情记录列表，可按情绪标签筛选（userId 由 JWT 获取） */
+export const getUserMoods = (page: number, pageSize: number, moodLabel?: string) =>
+  request.get<UserMoodListResult>('/user/mood', { params: { page, pageSize, moodLabel } })
 
 /** 获取心情记录详情 */
 export const getUserMoodDetail = (id: number) =>

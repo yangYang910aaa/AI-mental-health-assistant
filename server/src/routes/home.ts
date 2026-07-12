@@ -1,6 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../db.js'
+import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
+
+/** 从 JWT 载荷中提取 userId */
+const getUserId = (request: any): number =>
+  (request.user as { userId: number }).userId
 
 // ==================== 每日寄语 ====================
 
@@ -20,14 +25,11 @@ const DAILY_QUOTES = [
 
 export async function homeRoutes(app: FastifyInstance) {
 
-  // ========== 用户首页 /api/user/home —— 聚合数据  ==========
-  app.get('/api/user/home', async (request, reply) => {
-    const { userId: userIdStr } = request.query as { userId?: string }
+  app.addHook('onRequest', requireAuth)   // 需登录
 
-    const userId = Number(userIdStr)
-    if (isNaN(userId) || userId <= 0) {
-      return reply.status(400).send({ code: 400, message: '用户ID必须是正整数', data: null })
-    }
+  // ========== GET /api/user/home —— 首页聚合数据 ==========
+  app.get('/api/user/home', async (request, reply) => {
+    const userId = getUserId(request)
 
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())

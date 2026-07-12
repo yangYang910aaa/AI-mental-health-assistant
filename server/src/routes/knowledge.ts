@@ -112,7 +112,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     schema: { body: createArticleBodySchema },//1.Fastify自动校验请求体是否符合 schema
     preHandler: [requireAuth],//2.验证token身份
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') { // 3.校验用户角色是否为管理员
       return reply.status(403).send({ code: 403, message: '仅管理员可创建文章', data: null })
@@ -148,7 +148,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
     schema: { body: updateArticleBodySchema },//1.Fastify自动校验请求体是否符合 schema
     preHandler: [requireAuth],//2.验证token身份
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') { // 3.校验用户角色是否为管理员
       return reply.status(403).send({ code: 403, message: '仅管理员可编辑文章', data: null })
@@ -184,7 +184,7 @@ export async function knowledgeRoutes(app: FastifyInstance) {
   app.delete('/api/knowledge/articles/:id', {
     preHandler: [requireAuth],
   }, async (request, reply) => {
-    const user = (request as any).user as { userId: number; role: string }
+    const user = request.user
 
     if (user.role !== 'admin') {
       return reply.status(403).send({ code: 403, message: '仅管理员可删除文章', data: null })
