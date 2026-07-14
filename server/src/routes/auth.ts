@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { prisma } from '../db.js'
@@ -97,9 +98,9 @@ export async function authRoutes(app: FastifyInstance) {
       await prisma.user.create({
         data: { username, passwordHash, nickname: nickname?.trim() || username, role: 'user', email },
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Prisma 唯一约束冲突（并发注册 / findFirst 和 create 之间的竞态）
-      if (err?.code === 'P2002') {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         return reply.status(409).send({ code: 409, message: '用户名或邮箱已被使用,请更换', data: null })
       }
       throw err // 其他错误（DB 断连等）抛给全局 errorHandler

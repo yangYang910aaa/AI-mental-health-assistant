@@ -163,7 +163,7 @@ const emailRules: FormRules = {
   ],
 }
 
-const validateConfirm = (_rule: any, value: string, callback: (error?: Error) => void) => {
+const validateConfirm = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!value) {
     callback(new Error('请再次输入新密码'))
   } else if (value !== formData.newPassword) {
@@ -230,7 +230,7 @@ const handleReset = async () => {
   try {
     await resetPassword(formData.email, formData.code, formData.newPassword)
     step.value = 3
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof BusinessError) {
       ElMessage.error(err.message || '重置密码失败')
     }

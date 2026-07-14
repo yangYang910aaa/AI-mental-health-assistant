@@ -3,15 +3,16 @@
  * POST 创建时异步调用 AI 生成情绪分析和专业建议。
  * 全部接口需 JWT 登录，userId 从令牌提取。
  */
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 import { chat } from '../ai/client.js'
+import type { Prisma } from '@prisma/client'
 
 /** 从 JWT 载荷中提取 userId */
-const getUserId = (request: any): number =>
+const getUserId = (request: FastifyRequest): number =>
   (request.user as { userId: number }).userId
 
 // ==================== JSON Schema 校验 ====================
@@ -106,8 +107,8 @@ const analyzeMoodAsync = (recordId: number, data: {
       await prisma.moodRecord.update({
         where: { id: recordId },
         data: {
-          aiAnalysis: parsed.analysis as any,
-          aiSuggestion: parsed.suggestion as any,
+          aiAnalysis: parsed.analysis as unknown as Prisma.InputJsonValue,
+          aiSuggestion: parsed.suggestion as unknown as Prisma.InputJsonValue,
         },
       })
     })

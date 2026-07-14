@@ -49,8 +49,8 @@ export function useProfile(
       userStore.setUser(updated)
       avatarPreview.value = result.url
       ElMessage.success('头像已更新')
-    } catch (err: any) {
-      if (!(err instanceof BusinessError)) ElMessage.error(err.message || '头像上传失败')
+    } catch (err: unknown) {
+      if (!(err instanceof BusinessError)) ElMessage.error(err instanceof Error ? err.message : '头像上传失败')
     }
 
     input.value = ''
@@ -76,8 +76,8 @@ export function useProfile(
       const updated = await updateProfile({ nickname: nickname.value.trim() })
       userStore.setUser(updated)
       ElMessage.success('昵称已保存')
-    } catch (err: any) {
-      if (!(err instanceof BusinessError)) ElMessage.error(err.message || '保存失败')
+    } catch (err: unknown) {
+      if (!(err instanceof BusinessError)) ElMessage.error(err instanceof Error ? err.message : '保存失败')
     } finally {
       savingNickname.value = false
     }
@@ -109,8 +109,8 @@ export function useProfile(
       userStore.setUser(updated)
       email.value = updated.email
       ElMessage.success('邮箱已保存')
-    } catch (err: any) {
-      if (!(err instanceof BusinessError)) ElMessage.error(err.message || '保存失败')
+    } catch (err: unknown) {
+      if (!(err instanceof BusinessError)) ElMessage.error(err instanceof Error ? err.message : '保存失败')
     } finally {
       savingEmail.value = false
     }
@@ -124,7 +124,7 @@ export function useProfile(
     confirmPassword: '',
   })
 
-  const validateConfirm = (_rule: any, value: string, callback: any) => {
+  const validateConfirm = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
     if (!value) {
       callback(new Error('请再次输入新密码'))
     } else if (value !== passwordForm.newPassword) {
@@ -163,8 +163,8 @@ export function useProfile(
       passwordForm.newPassword = ''
       passwordForm.confirmPassword = ''
       passwordFormRef.value?.resetFields()
-    } catch (err: any) {
-      if (!(err instanceof BusinessError)) ElMessage.error(err.message || '修改失败')
+    } catch (err: unknown) {
+      if (!(err instanceof BusinessError)) ElMessage.error(err instanceof Error ? err.message : '修改失败')
     } finally {
       savingPassword.value = false
     }

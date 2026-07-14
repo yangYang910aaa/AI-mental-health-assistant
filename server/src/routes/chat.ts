@@ -2,7 +2,8 @@
  * 聊天路由 —— 只做路由编排：接收请求 → 校验 → 委托 → 返回。
  * AI 逻辑在 ../ai/ 目录下，数据访问在 prisma，路由本身不包含业务细节。
  */
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import type { ServerResponse } from 'node:http'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
@@ -20,7 +21,7 @@ const memoryExtractionTracker = new Map<number, { time: number; msgCount: number
 // ==================== SSE 辅助 ====================
 
 /** 向 SSE 连接写入一条命名事件 */
-const sse = (raw: any, event: string, data: unknown) => {
+const sse = (raw: ServerResponse, event: string, data: unknown) => {
   raw.write(`event: ${event}
 data: ${JSON.stringify(data)}
 
@@ -30,7 +31,7 @@ data: ${JSON.stringify(data)}
 // ==================== 辅助函数 ====================
 
 /** 从 JWT 载荷中提取 userId */
-const getUserId = (request: any): number =>
+const getUserId = (request: FastifyRequest): number =>
   (request.user as { userId: number }).userId
 
 /**
@@ -41,7 +42,7 @@ const getUserId = (request: any): number =>
 const verifySessionOwnership = async (
   sessionId: number,
   userId: number,
-  reply: any,
+  reply: FastifyReply,
 ): Promise<boolean> => {
   const session = await prisma.chatSession.findUnique({ where: { id: sessionId } })
   if (!session) {
@@ -60,7 +61,7 @@ const verifySessionOwnership = async (
  * 任意一步失败自动回错误并返回 null，调用方只需 `if (!resolved) return`。
  * 消除了 GET /:id、PUT /:id、PUT /:id/pin、DELETE /:id 四个路由的重复代码。
  */
-const resolveSession = async (request: any, reply: any) => {
+const resolveSession = async (request: FastifyRequest, reply: FastifyReply) => {
   const userId = getUserId(request)
   const { id } = request.params as { id: string }
   const sessionId = parseId(id, '会话', reply)
@@ -344,11 +345,11 @@ export async function chatRoutes(app: FastifyInstance) {
           content: aiContent, time: formatDateTime(new Date()),
         },
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isDisconnected) {
         console.log('[Chat] 客户端断开，AI 调用中止')
       } else {
-        console.error('[Chat] AI 调用失败:', err.message ?? err)
+        console.error('[Chat] AI 调用失败:', err instanceof Error ? err.message : String(err))
         sse(rawReply, 'error', { message: 'AI 回复生成失败，请稍后重试' })
       }
     } finally {
@@ -384,8 +385,8 @@ export async function chatRoutes(app: FastifyInstance) {
             const filteredMemoryInput = recentForMemory.filter((m) => m.content)
             const items = await extractMemories(filteredMemoryInput)
             await saveMemories(userId, items)
-          } catch (e: any) {
-            console.error('[Memory Background] 记忆自动提取/保存失败:', e.message ?? e)
+          } catch (e: unknown) {
+            console.error('[Memory Background] 记忆自动提取/保存失败:', e instanceof Error ? e.message : String(e))
           }
         })()
         }

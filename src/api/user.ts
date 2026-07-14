@@ -121,9 +121,9 @@ export const sendMessageStream = async (
       body: JSON.stringify({ sessionId, content, deepThinking }),
       signal,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     // AbortError → 用户主动取消，静默退出，不报错
-    if (err?.name === 'AbortError') return
+    if (err instanceof DOMException && err.name === 'AbortError') return
     callbacks.onError('网络连接失败，请检查网络后重试')
     return
   }

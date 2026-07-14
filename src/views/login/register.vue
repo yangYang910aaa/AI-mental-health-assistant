@@ -131,7 +131,7 @@ const formData = reactive({
 })
 
 // 校验确认密码
-const validateConfirmPassword = (_rule: any, value: string, callback: (error?: Error) => void) => {
+const validateConfirmPassword = (_rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (!value) {
     callback(new Error('请再次输入密码'))
   } else if (value !== formData.password) {

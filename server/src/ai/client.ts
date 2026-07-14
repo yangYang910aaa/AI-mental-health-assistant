@@ -81,13 +81,14 @@ async function callDeepSeekWithRetry(params: ChatParams, signal: AbortSignal, ma
       }
 
       return response
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
         throw err // 被主动中止（如超时），不重试
       }
+      const message = err instanceof Error ? err.message : String(err)
       if (attempt < maxRetries) {
         attempt++
-        console.warn(`[Client] 网络连接失败: "${err.message}"，正在进行第 ${attempt} 次重试...`)
+        console.warn(`[Client] 网络连接失败: "${message}"，正在进行第 ${attempt} 次重试...`)
         await new Promise((resolve) => setTimeout(resolve, delay))
         delay *= 2
         continue

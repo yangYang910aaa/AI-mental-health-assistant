@@ -191,7 +191,7 @@ const {
 
 // 模板 ref —— 滚动容器 + 输入框
 const messagesContainerRef = ref<HTMLElement>()
-const inputRef = ref<any>()
+const inputRef = ref<{ focus: () => void }>()
 
 // 消息变化时滚到底
 watch(

@@ -39,7 +39,6 @@ export interface ChatState {
   isGenerating: ReturnType<typeof ref<boolean>>
   sidebarCollapsed: ReturnType<typeof ref<boolean>>
   currentSessionTitle: ReturnType<typeof computed<string>>
-  // actions
   loadSessions: () => Promise<void>
   switchSession: (id: number) => Promise<void>
   startNewChat: () => void
@@ -48,7 +47,7 @@ export interface ChatState {
   retryMessage: () => Promise<void>
   handleSessionAction: (command: string, session: ChatSession) => Promise<void>
   scrollToBottom: (container: HTMLElement | undefined) => void
-  focusInput: (inputEl: any) => void
+  focusInput: (inputEl: { focus?: () => void } | undefined) => void
   formatTime: (time: string) => string
 }
 
@@ -96,8 +95,8 @@ export function useChat() {
     })
   }
 
-  const focusInput = (inputEl: any) => {
-    nextTick(() => inputEl?.focus())
+  const focusInput = (inputEl: { focus?: () => void } | undefined) => {
+    nextTick(() => inputEl?.focus?.())
   }
 
   const formatTime = (time: string) => {
@@ -280,9 +279,9 @@ export function useChat() {
         },
         signal,
       )
-    } catch (err: any) {
+    } catch (err: unknown) {
       // AbortError → 用户主动取消，静默退出
-      if (err?.name === 'AbortError') {
+      if (err instanceof DOMException && err.name === 'AbortError') {
         // 取消残留 RAF，防止旧 flushChunk 在下一轮会话中覆盖错误消息
         if (_rafHandle) {
           cancelAnimationFrame(_rafHandle)
@@ -339,7 +338,7 @@ export function useChat() {
             cancelButtonText: '取消',
             inputValue: session.title,
             inputValidator: (v: string) => v.trim().length > 0 || '标题不能为空',
-          } as any)
+          })
           if (value?.trim()) {
             await renameSession(session.id, value.trim())
             session.title = value.trim()

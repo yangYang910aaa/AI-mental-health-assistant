@@ -1,13 +1,16 @@
 import type { FastifyInstance } from 'fastify'
+import type { Article } from '@prisma/client'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 
-// 序列化文章：Date → 字符串
-const serialize = (a: any) => ({
+// 序列化文章：tags 可能是 JSON 字符串也可能是已解析的数组，Date → 字符串
+const serialize = (a: Article) => ({
   ...a,
-  tags: typeof a.tags === 'string' ? (() => { try { return JSON.parse(a.tags) } catch { return a.tags } })() : (a.tags ?? []),
+  tags: typeof a.tags === 'string'
+    ? (() => { try { return JSON.parse(a.tags) } catch { return a.tags } })()
+    : (a.tags ?? []),
   createdAt: a.createdAt instanceof Date ? formatDateTime(a.createdAt) : a.createdAt,
 })
 

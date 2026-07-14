@@ -48,14 +48,21 @@ export async function extractMemories(
   const m = json.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (m) json = m[1]
 
+  // JSON.parse 返回值无类型信息，显式定义预期的记忆项结构
+  interface RawMemoryItem {
+    content?: string | null
+    category?: string | null
+  }
+
   try {
-    const parsed = JSON.parse(json)
+    const parsed: unknown = JSON.parse(json)
     if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item: any) => item.content && typeof item.content === 'string')
-        .map((item: any) => ({
+      return (parsed as RawMemoryItem[])
+        .filter((item): item is RawMemoryItem & { content: string } =>
+          item != null && typeof item.content === 'string' && item.content.length > 0)
+        .map((item) => ({
           content: item.content.slice(0, 500),
-          category: item.category || '其他',
+          category: typeof item.category === 'string' ? item.category : '其他',
         }))
     }
   } catch {

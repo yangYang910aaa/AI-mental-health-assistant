@@ -1,10 +1,10 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
 import { formatDateTime } from '../utils/format.js'
 
 /** 从 JWT 载荷中提取 userId */
-const getUserId = (request: any): number =>
+const getUserId = (request: FastifyRequest): number =>
   (request.user as { userId: number }).userId
 
 // ==================== 每日寄语 ====================

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { requireAuth } from '../middleware/jwtAuth.js'
 
@@ -44,7 +45,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
     }
 
     const { range: rangeStr } = request.query as { range?: string }
-    const range = (['7d', '30d', '90d'] as const).includes(rangeStr as any) ? rangeStr! : '30d'
+    const range = (['7d', '30d', '90d'] as const).includes(rangeStr as '7d' | '30d' | '90d') ? rangeStr! : '30d'
     const totalDays = range === '7d' ? 7 : range === '90d' ? 90 : 30
     const groupSize: 1 | 7 = range === '90d' ? 7 : 1
 
@@ -92,9 +93,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const riskMap: Record<string, number> = { '低风险': 0, '中风险': 0, '高风险': 0 }
     let highRiskCount = 0
     for (const r of highRiskRecords) {
-      const raw = r.aiAnalysis as any
+      const raw = r.aiAnalysis as Prisma.JsonValue
       const analysis: { riskLevel?: string } | null =
-        typeof raw === 'string' ? JSON.parse(raw) : raw
+        typeof raw === 'string' ? JSON.parse(raw) : (typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? raw : null)
       const level = analysis?.riskLevel || '未知'
       if (level === '高风险') highRiskCount++
       if (riskMap[level] !== undefined) riskMap[level]++

@@ -188,7 +188,7 @@ const handleUploadRequest = async (options: UploadRequestOptions) => {
   } catch {
     uploading.value = false
     ElMessage.error('封面上传失败')
-    options.onError(new Error('上传失败') as any)
+    options.onError(new Error('上传失败'))
   }
 }
 

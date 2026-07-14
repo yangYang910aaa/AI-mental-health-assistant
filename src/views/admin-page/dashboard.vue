@@ -103,6 +103,12 @@ import { MOOD_LABEL_COLORS } from '@/api/emotional'
 
 type RangeKey = '7d' | '30d' | '90d'
 
+/** ECharts axis tooltip formatter 入参（trigger: 'axis'） */
+type TooltipAxisParam = { marker: string; axisValue: string; value: number }
+
+/** ECharts item tooltip formatter 入参（trigger: 'item'） */
+type TooltipItemParam = { marker: string; name: string; value: number; percent: string }
+
 // ==================== KPI + 分布数据（不随范围变化） ====================
 const kpiData = ref<DashboardData>()
 
@@ -176,7 +182,7 @@ const moodTrendOption = computed(() => {
       backgroundColor: '#fff',
       borderColor: '#e4e7ed',
       textStyle: { color: '#303133', fontSize: 12 },
-      formatter: (params: any) => {
+      formatter: (params: TooltipAxisParam[]) => {
         const p = params[0]
         return `<strong>${p.axisValue}</strong><br/>情绪指数：<b style="color:#626aef">${p.value}/10</b>`
       },
@@ -250,7 +256,7 @@ const emotionDistOption = computed(() => {
     toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },
     tooltip: {
       trigger: 'item',
-      formatter: (p: any) => `${p.marker} ${p.name}：<b>${p.value}</b> 条（${p.percent}%）`,
+      formatter: (p: TooltipItemParam) => `${p.marker} ${p.name}：<b>${p.value}</b> 条（${p.percent}%）`,
     },
     legend: { bottom: 0, textStyle: { fontSize: 11 } },
     graphic: {
@@ -286,7 +292,7 @@ const riskDistOption = computed(() => {
     toolbox: { feature: { saveAsImage: { title: '保存' } }, right: 8, top: 4 },
     tooltip: {
       trigger: 'item',
-      formatter: (p: any) => `${p.marker} ${p.name}：<b>${p.value}</b> 条（${p.percent}%）`,
+      formatter: (p: TooltipItemParam) => `${p.marker} ${p.name}：<b>${p.value}</b> 条（${p.percent}%）`,
     },
     legend: { bottom: 0, textStyle: { fontSize: 11 } },
     graphic: {
@@ -325,7 +331,7 @@ const consultationTrendOption = computed(() => {
       backgroundColor: '#fff',
       borderColor: '#e4e7ed',
       textStyle: { color: '#303133', fontSize: 12 },
-      formatter: (params: any) => {
+      formatter: (params: TooltipAxisParam[]) => {
         const p = params[0]
         const diff = p.value - avg
         const diffStr = diff >= 0 ? `+${diff}` : `${diff}`
@@ -385,7 +391,7 @@ const userActivityOption = computed(() => {
       backgroundColor: '#fff',
       borderColor: '#e4e7ed',
       textStyle: { color: '#303133', fontSize: 12 },
-      formatter: (params: any) => {
+      formatter: (params: TooltipAxisParam[]) => {
         const p = params[0]
         const diff = p.value - avg
         const diffStr = diff >= 0 ? `+${diff}` : `${diff}`

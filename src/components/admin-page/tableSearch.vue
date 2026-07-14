@@ -43,7 +43,7 @@ import { ref,reactive,computed } from 'vue'
 
 const formRef=ref<FormInstance>()
 //表单数据
-const formData:Record<string,any>=reactive({})
+const formData: Record<string, unknown> = reactive({})
 
 // 搜索表单的类型限制——核心字段有提示，扩展字段随便加
 interface FormItem {
@@ -51,7 +51,7 @@ interface FormItem {
   prop: string
   comp: string
   placeholder: string
-  [key: string]: any  // 其他属性（options、col、multiple…）自由传递，不报类型错误
+  [key: string]: unknown  // 其他属性（options、col、multiple…）自由传递，不报类型错误
 }
 //接收父组件传递的 formItem 数组,props是一个响应式对象,里面包裹了formItem数组
 const props = defineProps({
