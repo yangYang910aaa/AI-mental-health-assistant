@@ -55,10 +55,11 @@ export const validateToken = async (): Promise<UserInfo | null> => {
     if (!res.ok) return null
     const body = await res.json()
     if (body.code !== 200) return null
-    // 同步更新 localStorage 中的 userInfo
+    // 同步更新 localStorage 中的 userInfo（fetch 的 .json() 返回 any，需显式标注转换边界）
+    const data = body.data as unknown as UserInfo
     const userStore = useUserStore()
-    userStore.setUser(body.data as UserInfo)
-    return body.data as UserInfo
+    userStore.setUser(data)
+    return data
   } catch{
     clearTimeout(timeoutId)
     return null

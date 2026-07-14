@@ -45,15 +45,15 @@ const router = createRouter({
       beforeEnter:(_to,_from,next)=>{
         //只保留admin校验,token校验在beforeEach中处理
         try{
-          const raw=localStorage.getItem('userInfo')
-          const userInfo=raw? JSON.parse(raw) : null
-          if(!userInfo?.roles?.includes('admin')){
+          const raw = localStorage.getItem('userInfo')
+          const userInfo = raw ? (JSON.parse(raw) as Record<string, unknown> | null) : null
+          if (!Array.isArray(userInfo?.roles) || !(userInfo.roles as string[]).includes('admin')) {
             // 非管理员用户，重定向到登录页
-            return next({name:ROUTE_NAMES.login})
+            return next({ name: ROUTE_NAMES.login })
           }
           next()
-        }catch{
-          next({name:ROUTE_NAMES.login})
+        } catch {
+          next({ name: ROUTE_NAMES.login })
         }
       },
       children: [
@@ -210,14 +210,14 @@ router.beforeEach(async (to, _from, next) => {
   if (to.path.startsWith('/auth') && token && tokenValid) {
     try {
       const raw = localStorage.getItem('userInfo')
-      const userInfo = raw ? JSON.parse(raw) : null
-      if (userInfo?.roles?.includes('admin')) {
-        next({name:ROUTE_NAMES.dashboard})
+      const userInfo = raw ? (JSON.parse(raw) as Record<string, unknown> | null) : null
+      if (Array.isArray(userInfo?.roles) && (userInfo.roles as string[]).includes('admin')) {
+        next({ name: ROUTE_NAMES.dashboard })
       } else {
-        next({ name:ROUTE_NAMES.userHome })
+        next({ name: ROUTE_NAMES.userHome })
       }
     } catch {
-      next({ name:ROUTE_NAMES.userHome })
+      next({ name: ROUTE_NAMES.userHome })
     }
     return
   }

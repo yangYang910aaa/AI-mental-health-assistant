@@ -42,16 +42,21 @@ import type { PropType } from 'vue'
 import { ref,reactive,computed } from 'vue'
 
 const formRef=ref<FormInstance>()
-//表单数据
-const formData: Record<string, unknown> = reactive({})
+// 表单数据（输入组件 v-model 绑定均为字符串）
+const formData: Record<string, string> = reactive({})
 
-// 搜索表单的类型限制——核心字段有提示，扩展字段随便加
+// 搜索表单配置项——模板实际访问的属性显式标注，其余通过索引签名兼容
 interface FormItem {
   label: string
   prop: string
   comp: string
   placeholder: string
-  [key: string]: unknown  // 其他属性（options、col、multiple…）自由传递，不报类型错误
+  col?: Record<string, number>
+  options?: Array<{ label: string; value: string }>
+  fetchSuggestions?: Function
+  triggerOnFocus?: boolean
+  onSelect?: Function
+  [key: string]: unknown
 }
 //接收父组件传递的 formItem 数组,props是一个响应式对象,里面包裹了formItem数组
 const props = defineProps({

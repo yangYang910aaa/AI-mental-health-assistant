@@ -32,7 +32,7 @@ data: ${JSON.stringify(data)}
 
 /** 从 JWT 载荷中提取 userId */
 const getUserId = (request: FastifyRequest): number =>
-  (request.user as { userId: number }).userId
+  request.user.userId
 
 /**
  * 校验会话是否存在且用户是否有权访问。
@@ -419,7 +419,10 @@ export async function chatRoutes(app: FastifyInstance) {
     const session = await prisma.chatSession.findUnique({
       where: { id: resolved.sessionId },
     })
-    const pinned = !session!.pinned
+    if (!session) {
+      return reply.status(404).send({ code: 404, message: '会话不存在', data: null })
+    }
+    const pinned = !session.pinned
 
     await prisma.chatSession.update({
       where: { id: resolved.sessionId }, data: { pinned },

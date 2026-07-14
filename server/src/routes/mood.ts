@@ -13,7 +13,7 @@ import type { Prisma } from '@prisma/client'
 
 /** 从 JWT 载荷中提取 userId */
 const getUserId = (request: FastifyRequest): number =>
-  (request.user as { userId: number }).userId
+  request.user.userId
 
 // ==================== JSON Schema 校验 ====================
 
@@ -86,7 +86,7 @@ const parseAnalysisJson = (text: string) => {
   let jsonStr = text.trim()
   const codeMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (codeMatch) jsonStr = codeMatch[1]
-  return JSON.parse(jsonStr) as { analysis: MoodAnalysis; suggestion: MoodSuggestion }
+  return JSON.parse(jsonStr) as unknown as { analysis: MoodAnalysis; suggestion: MoodSuggestion }
 }
 
 /**

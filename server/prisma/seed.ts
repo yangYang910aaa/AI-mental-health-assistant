@@ -43,7 +43,7 @@ async function main() {
   const users: Array<{ id: number; nickname: string; role: string }> = []
   for (const u of userDefs) {
     const created = await prisma.user.create({ data: u })
-    users.push({ id: created.id, nickname: created.nickname!, role: created.role })
+    users.push({ id: created.id, nickname: created.nickname ?? u.username, role: created.role })
   }
   console.log(`  ✓ 创建 ${users.length} 个用户: ${users.map((u) => `${u.nickname}(${u.role})`).join(', ')}\n`)
 

@@ -51,8 +51,9 @@ const loading = ref(true)
 
 /** 分类 value → 中文 label */
 const categoryLabel = computed(() => {
-  if (!article.value) return ''
-  return CATEGORIES.find((c) => c.value === article.value!.category)?.label || article.value!.category
+  const a = article.value
+  if (!a) return ''
+  return CATEGORIES.find((c) => c.value === a.category)?.label || a.category
 })
 
 // ==================== 数据加载 ====================

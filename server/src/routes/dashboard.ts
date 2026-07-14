@@ -45,7 +45,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
     }
 
     const { range: rangeStr } = request.query as { range?: string }
-    const range = (['7d', '30d', '90d'] as const).includes(rangeStr as '7d' | '30d' | '90d') ? rangeStr! : '30d'
+    const ALLOWED_RANGES = ['7d', '30d', '90d'] as const
+    type RangeKey = (typeof ALLOWED_RANGES)[number]
+    const range: RangeKey = (ALLOWED_RANGES as readonly string[]).includes(rangeStr ?? '') ? (rangeStr as RangeKey) : '30d'
     const totalDays = range === '7d' ? 7 : range === '90d' ? 90 : 30
     const groupSize: 1 | 7 = range === '90d' ? 7 : 1
 

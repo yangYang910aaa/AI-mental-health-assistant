@@ -4,10 +4,10 @@ import jwt from 'jsonwebtoken'
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET 环境变量未设置");
-  
+
 }
 
-/** JWT 载荷 */
+/** JWT 自定义载荷 */
 export interface JwtPayload {
   userId: number
   role: string
@@ -15,7 +15,7 @@ export interface JwtPayload {
 
 /** 签发 token, 过期时间为 7 天 */
 export const signToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }) 
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
 }
 
 /**
@@ -27,13 +27,17 @@ export const requireAuth = async (request: FastifyRequest, reply: FastifyReply) 
   const token = typeof header === 'string' ? header.replace(/^Bearer\s+/i, '') : null
 
   if (!token) {
-    return reply.status(401).send({ code: 401, message: '请先登录', data: null }) // 如果没有 token，返回401: 未授权
+    return reply.status(401).send({ code: 401, message: '请先登录', data: null })
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload // 验证 token 并解析载荷
-    // 将解析后的载荷挂载到 request 上
-    request.user = payload
+    const raw = jwt.verify(token, JWT_SECRET)
+    // jwt.verify 返回 string | JwtPayload（库自带的 JwtPayload 有索引签名），
+    // 只签对象 { userId, role }，runtime 始终是 object 且字段匹配。
+    if (typeof raw === 'string') {
+      return reply.status(401).send({ code: 401, message: '令牌格式无效', data: null })
+    }
+    request.user = raw as unknown as JwtPayload
   } catch {
     return reply.status(401).send({ code: 401, message: '登录已过期，请重新登录', data: null })
   }

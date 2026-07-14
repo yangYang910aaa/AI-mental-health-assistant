@@ -18,5 +18,5 @@ export const uploadFile = async (file: File): Promise<UploadResult> => {
   if (!res.ok || body.code !== 200) {
     throw new Error(body.message || '上传失败')
   }
-  return body.data as UploadResult
+  return body.data as unknown as UploadResult
 }

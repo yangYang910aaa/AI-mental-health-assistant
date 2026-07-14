@@ -188,7 +188,8 @@ const handleUploadRequest = async (options: UploadRequestOptions) => {
   } catch {
     uploading.value = false
     ElMessage.error('封面上传失败')
-    options.onError(new Error('上传失败'))
+    // onError 要求 UploadAjaxError（含 status/method/url），统一转为 unknown 满足调用
+    options.onError(new Error('上传失败') as unknown as Parameters<NonNullable<typeof options.onError>>[0])
   }
 }
 

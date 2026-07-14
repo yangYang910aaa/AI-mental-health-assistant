@@ -57,9 +57,12 @@ export async function extractMemories(
   try {
     const parsed: unknown = JSON.parse(json)
     if (Array.isArray(parsed)) {
-      return (parsed as RawMemoryItem[])
-        .filter((item): item is RawMemoryItem & { content: string } =>
-          item != null && typeof item.content === 'string' && item.content.length > 0)
+      return parsed
+        .filter((item: unknown): item is RawMemoryItem & { content: string } => {
+          if (typeof item !== 'object' || item === null) return false
+          const obj = item as Record<string, unknown>
+          return typeof obj.content === 'string' && obj.content.length > 0
+        })
         .map((item) => ({
           content: item.content.slice(0, 500),
           category: typeof item.category === 'string' ? item.category : '其他',
@@ -202,8 +205,12 @@ export async function getMemoryContext(userId: number, currentMessage?: string):
   const grouped = new Map<string, string[]>()
   for (const m of filtered) {
     const cat = m.category || '其他'
-    if (!grouped.has(cat)) grouped.set(cat, [])
-    grouped.get(cat)!.push(m.content)
+    const bucket = grouped.get(cat)
+    if (bucket) {
+      bucket.push(m.content)
+    } else {
+      grouped.set(cat, [m.content])
+    }
   }
 
   const lines: string[] = ['以下是此前对话中了解到的用户信息：']

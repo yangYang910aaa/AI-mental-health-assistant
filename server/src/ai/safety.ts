@@ -89,11 +89,16 @@ export async function checkCrisisWithAI(text: string): Promise<SafetyResult> {
     const m = json.match(/```(?:json)?\s*([\s\S]*?)```/)
     if (m) json = m[1]
 
-    const parsed = JSON.parse(json)
-    if (typeof parsed.flagged === 'boolean') {
+    const parsed: unknown = JSON.parse(json)
+    if (
+      typeof parsed === 'object' && parsed !== null
+      && 'flagged' in parsed
+      && typeof (parsed as Record<string, unknown>).flagged === 'boolean'
+    ) {
+      const obj = parsed as Record<string, unknown>
       return {
-        flagged: parsed.flagged,
-        reasons: Array.isArray(parsed.reasons) ? parsed.reasons : (parsed.flagged ? quickResult.reasons : [])
+        flagged: obj.flagged as boolean,
+        reasons: Array.isArray(obj.reasons) ? (obj.reasons as string[]) : (obj.flagged ? quickResult.reasons : []),
       }
     }
   } catch (err) {
