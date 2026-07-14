@@ -65,6 +65,14 @@
 
       <!-- 消息列表 -->
       <div class="chat-messages" ref="messagesContainerRef">
+        <!-- 滚动提示：用户翻看历史时，新消息不自动滚到底，显示此按钮 -->
+        <transition name="scroll-fade">
+          <div v-if="showScrollHint" class="scroll-hint" @click="scrollToBottom(messagesContainerRef, true)">
+            <el-icon><ArrowDown /></el-icon>
+            <span>新消息</span>
+          </div>
+        </transition>
+
         <div v-if="!messages.length && !isGenerating" class="chat-empty">
           <el-icon :size="40" color="#d4cfc4"><ChatDotRound /></el-icon>
           <p>开始和 AI 咨询师聊聊吧</p>
@@ -86,7 +94,13 @@
             </el-avatar>
           </div>
           <div class="bubble-content">
-            <div class="bubble-text" :class="{ error: msg.error && msg.sender === 'assistant' }">
+            <div class="bubble-text" :class="{ error: msg.error && msg.sender === 'assistant', thinking: isThinking && msg.sender === 'assistant' && !msg.content && idx === messages.length - 1 }">
+              <!-- 思考动画：AI 气泡创建但还没收到第一个 token -->
+              <span v-if="isThinking && msg.sender === 'assistant' && !msg.content && idx === messages.length - 1" class="thinking-dots">
+                <span class="dot" />
+                <span class="dot" />
+                <span class="dot" />
+              </span>
               {{ msg.content }}
               <!-- 错误气泡 → 重试入口 -->
               <template v-if="msg.error && msg.sender === 'assistant' && idx === messages.length - 1">
@@ -145,7 +159,7 @@
 import { ref, watch, nextTick } from 'vue'
 import {
   Expand, Fold, Plus, Promotion, Sunrise, ChatDotRound,
-  MoreFilled, Top, Edit, Delete, Close,
+  MoreFilled, Top, Edit, Delete, Close, ArrowDown,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useChat } from '@/composables/useChat'
@@ -159,6 +173,8 @@ const {
   activeSessionId,
   inputText,
   isGenerating,
+  isThinking,
+  showScrollHint,
   sidebarCollapsed,
   loadingSessions,
   currentSessionTitle,
@@ -333,7 +349,33 @@ nextTick(() => focusInput(inputRef.value))
     overflow-y: auto;
     padding: 20px 24px;
     background: #faf9f7;
+    position: relative;
   }
+
+  .scroll-hint {
+    position: sticky;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    background: #8b9e7e;
+    color: #fff;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    transition: opacity 0.2s, transform 0.2s;
+    &:hover { opacity: 0.9; transform: translateX(-50%) translateY(-1px); }
+  }
+
+  .scroll-fade-enter-active,
+  .scroll-fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
+  .scroll-fade-enter-from,
+  .scroll-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(6px); }
 
   .chat-empty {
     display: flex;
@@ -396,12 +438,38 @@ nextTick(() => focusInput(inputRef.value))
         line-height: 1.6;
         color: #374151;
 
+        &.thinking {
+          padding: 14px 18px;
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+        }
+
         &.error {
           background: #fef0f0 !important;
           color: #e84747;
           border-radius: 4px 16px 16px 16px !important;
           box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
           white-space: pre-wrap;
+        }
+
+        .thinking-dots {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #c4bfb4;
+            animation: dot-bounce 1.4s infinite ease-in-out both;
+            &:nth-child(1) { animation-delay: -.32s; }
+            &:nth-child(2) { animation-delay: -.16s; }
+          }
+        }
+
+        @keyframes dot-bounce {
+          0%, 80%, 100% { transform: scale(0); }
+          40% { transform: scale(1); }
         }
 
         .retry-link {

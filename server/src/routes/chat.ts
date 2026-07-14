@@ -9,14 +9,22 @@ import { formatDateTime } from '../utils/format.js'
 import { parseId } from '../utils/validate.js'
 import { streamChat } from '../ai/client.js'
 import { buildContext } from '../ai/context.js'
-import { checkCrisis } from '../ai/safety.js'
+import { checkCrisisWithAI, getCrisisGuidance } from '../ai/safety.js'
 import { getMemoryContext, extractMemories, saveMemories } from '../ai/memory.js'
+
+// ==================== 记忆提取冷却 ====================
+
+/** 记忆提取频率控制：userId → 上次提取时间 + 当时的用户消息数 */
+const memoryExtractionTracker = new Map<number, { time: number; msgCount: number }>()
 
 // ==================== SSE 辅助 ====================
 
 /** 向 SSE 连接写入一条命名事件 */
 const sse = (raw: any, event: string, data: unknown) => {
-  raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+  raw.write(`event: ${event}
+data: ${JSON.stringify(data)}
+
+`)
 }
 
 // ==================== 辅助函数 ====================
@@ -31,7 +39,9 @@ const getUserId = (request: any): number =>
  * 不匹配自动回 404/403 并返回 false。
  */
 const verifySessionOwnership = async (
-  sessionId: number, userId: number, reply: any,
+  sessionId: number,
+  userId: number,
+  reply: any,
 ): Promise<boolean> => {
   const session = await prisma.chatSession.findUnique({ where: { id: sessionId } })
   if (!session) {
@@ -181,19 +191,15 @@ export async function chatRoutes(app: FastifyInstance) {
       sessionId = s.id
     }
 
-    // ===== 2. 保存用户消息 + 危机检测 =====
+    // ===== 2. 保存用户消息 =====
     const userMsg = await prisma.chatMessage.create({
       data: { sessionId, sender: 'user', content },
     })
 
-    const crisis = checkCrisis(content)
-    if (crisis.flagged) {
-      prisma.chatMessage.update({
-        where: { id: userMsg.id }, data: { flagged: true },
-      }).catch((e: Error) => console.error('[Chat] 危机标记写入失败:', e.message))
-    }
+    // ===== 3. 并行开始高级危机检测 =====
+    const crisisPromise = checkCrisisWithAI(content)
 
-    // ===== 3. 并行查询上下文数据 =====
+    // ===== 4. 并行查询上下文数据 =====
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const [user, recentMoods, recent, articles] = await Promise.all([
       prisma.user.findUnique({
@@ -223,26 +229,14 @@ export async function chatRoutes(app: FastifyInstance) {
       }),
     ])
 
-    // ===== 4. 拼装上下文 → 组装 prompt =====
-    const userContext = buildUserContext(user, recentMoods)
-
-    const knowledgeSnippets = articles
-      .filter((a) => a.summary)
-      .map((a) => `《${a.title}》[${a.category}]：${a.summary}`)
-
-    const memoryContext = await getMemoryContext(userId)
-
-    const history = recent.reverse().map((m) => ({
-      sender: m.sender, content: m.content,
-    }))
-
-    const messages = buildContext({
-      userMessage: content,
-      history,
-      userContext,
-      knowledgeSnippets: knowledgeSnippets.length > 0 ? knowledgeSnippets : undefined,
-      memoryContext,
-    })
+    // 等待安全检测结果
+    const crisis = await crisisPromise
+    if (crisis.flagged) {
+      // 写入 flagged 标记
+      prisma.chatMessage.update({
+        where: { id: userMsg.id }, data: { flagged: true },
+      }).catch((e: Error) => console.error('[Chat] 危机标记写入失败:', e.message))
+    }
 
     // ===== 5. 切换到 SSE 模式 =====
     const rawReply = reply.raw
@@ -253,16 +247,18 @@ export async function chatRoutes(app: FastifyInstance) {
       'X-Accel-Buffering': 'no',
     })
 
-    // 心跳：每 10 秒发一次 SSE 注释，防止代理/Nginx 因空闲超时断开连接
+    // 心跳：每 10 秒发一次 SSE 注释
     const heartbeat = setInterval(() => {
       rawReply.write(': heartbeat\n\n')
     }, 10_000)
 
-    // 客户端断开检测：关闭标签页 / 取消请求时立即终止，避免浪费 API token
+    // 客户端断开 → 标记 + 清理心跳 + abort DeepSeek 调用避免浪费 token
+    const streamAbort = new AbortController()
     let isDisconnected = false
     const onClose = () => {
       isDisconnected = true
       clearInterval(heartbeat)
+      streamAbort.abort()
     }
     rawReply.on('close', onClose)
 
@@ -275,20 +271,56 @@ export async function chatRoutes(app: FastifyInstance) {
       },
     })
 
-    // ===== 6. 流式生成 =====
+    // ===== 6. 危机拦截流式分发或常规流式生成 =====
     let aiContent = ''
     try {
-      aiContent = await streamChat(messages, {
-        onChunk: (delta) => {
-          if (isDisconnected) return // 客户端已断开，不再推送
-          sse(rawReply, 'chunk', { content: delta })
-        },
-      }, deepThinking ?? false)
+      if (crisis.flagged) {
+        // 安全拦截：直接输出温暖安抚文字 + 热线求助引导，不走常规大模型。
+        const safePrompt = `【重要提示】
+我感受到了你此时此刻巨大的痛苦和无助，请深呼吸，千万不要轻易伤害自己。在这个世界上，你的生命非常重要，你不需要独自面对。
+` + getCrisisGuidance()
 
-      // 客户端已断开 → 不保存回复，不发送 done
+        // 模拟打字机流式输出安全提示语（每 15 字符流式发一次，提供逼真且极速的关怀反馈）
+        const chunkSize = 15
+        for (let i = 0; i < safePrompt.length; i += chunkSize) {
+          if (isDisconnected) break
+          const chunk = safePrompt.slice(i, i + chunkSize)
+          aiContent += chunk
+          sse(rawReply, 'chunk', { content: chunk })
+          await new Promise((resolve) => setTimeout(resolve, 80)) // 短暂延迟模拟打字机
+        }
+      } else {
+        // 常规流
+        const userContext = buildUserContext(user, recentMoods)
+        const knowledgeSnippets = articles
+          .filter((a) => a.summary)
+          .map((a) => `《${a.title}》[${a.category}]：${a.summary}`)
+
+        const memoryContext = await getMemoryContext(userId, content)
+        // [...recent].reverse() 避免修改原数组，保证后续记忆提取读到 DB 原始顺序
+        const history = [...recent].reverse().map((m) => ({
+          sender: m.sender, content: m.content,
+        }))
+
+        const messages = buildContext({
+          userMessage: content,
+          history,
+          userContext,
+          knowledgeSnippets: knowledgeSnippets.length > 0 ? knowledgeSnippets : undefined,
+          memoryContext,
+        })
+
+        aiContent = await streamChat(messages, {
+          onChunk: (delta) => {
+            if (isDisconnected) return
+            sse(rawReply, 'chunk', { content: delta })
+          },
+        }, deepThinking ?? false, undefined, streamAbort.signal)
+      }
+
       if (isDisconnected) {
         console.log('[Chat] 客户端断开，跳过保存 AI 回复')
-        return // 跳过 done / 保存
+        return
       }
 
       // ===== 7. 保存 AI 回复 =====
@@ -325,18 +357,38 @@ export async function chatRoutes(app: FastifyInstance) {
       rawReply.end()
     }
 
-    // ===== 8. 异步提取长期记忆 =====
-    if (aiContent && !isDisconnected) {
-      const userMsgCount = history.filter((m) => m.sender === 'user').length + 1
+    // ===== 8. 异步提取长期记忆 (完全非阻塞) =====
+    // 注意：如果是危机拦截状态下，不应该把无意义、极端绝望的自伤呼救词条提取为“爱好”或“人际关系”长期记忆，跳过提取
+    if (aiContent && !isDisconnected && !crisis.flagged) {
+      const userMsgCount = recent.filter((m) => m.sender === 'user').length + 1
       if (userMsgCount >= 4) {
-        const recentForMemory = history
-          .slice(-6)
-          .map((m) => ({ sender: m.sender, content: m.content }))
-        recentForMemory.push({ sender: 'user', content })
-        recentForMemory.push({ sender: 'assistant', content: aiContent })
-        extractMemories(recentForMemory.filter((m) => m.content))
-          .then((items) => saveMemories(userId, items))
-          .catch((e: Error) => console.error('[Chat] 记忆提取失败:', e.message))
+        // 冷却控制：距上次提取 ≥ 30 分钟，或新增 ≥ 10 条用户消息，才触发
+        const prev = memoryExtractionTracker.get(userId)
+        const shouldExtract = !prev
+          || (Date.now() - prev.time >= 30 * 60 * 1000)
+          || (userMsgCount - prev.msgCount >= 10)
+
+        if (shouldExtract) {
+          memoryExtractionTracker.set(userId, { time: Date.now(), msgCount: userMsgCount })
+
+          void (async () => {
+          try {
+            // recent 是 desc 顺序，取最新 6 条后翻转为时间顺序
+            const recentForMemory = recent
+              .slice(0, 6)
+              .reverse()
+              .map((m) => ({ sender: m.sender, content: m.content }))
+            recentForMemory.push({ sender: 'user', content })
+            recentForMemory.push({ sender: 'assistant', content: aiContent })
+
+            const filteredMemoryInput = recentForMemory.filter((m) => m.content)
+            const items = await extractMemories(filteredMemoryInput)
+            await saveMemories(userId, items)
+          } catch (e: any) {
+            console.error('[Memory Background] 记忆自动提取/保存失败:', e.message ?? e)
+          }
+        })()
+        }
       }
     }
   })
@@ -381,7 +433,9 @@ export async function chatRoutes(app: FastifyInstance) {
     const resolved = await resolveSession(request, reply)
     if (!resolved) return
 
-    await prisma.chatSession.delete({ where: { id: resolved.sessionId } })
-    return reply.send({ code: 200, message: '删除成功', data: null })
+    await prisma.chatSession.delete({
+      where: { id: resolved.sessionId },
+    })
+    return reply.send({ code: 200, message: '会话已删除', data: null })
   })
 }

@@ -46,10 +46,12 @@ export async function* parseSSEStream(
   const decoder = new TextDecoder()
   let buffer = ''
 
+  let onAbort: (() => void) | null = null
+
   try {
     // 如果外部 AbortSignal 触发，取消 reader
     if (signal) {
-      const onAbort = () => reader.cancel()
+      onAbort = () => reader.cancel()
       signal.addEventListener('abort', onAbort, { once: true })
     }
 
@@ -104,6 +106,9 @@ export async function* parseSSEStream(
       }
     }
   } finally {
+    if (signal && onAbort) {
+      signal.removeEventListener('abort', onAbort)
+    }
     reader.releaseLock()
   }
 }

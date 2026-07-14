@@ -62,6 +62,8 @@ export function useChat() {
   const activeSessionId = ref<number | null>(null)
   const inputText = ref('')
   const isGenerating = ref(false)
+  const isThinking = ref(false)       // AI 开始生成但还没收到第一个 token
+  const showScrollHint = ref(false)   // 用户翻看历史时显示「↓ 新消息」
   const sidebarCollapsed = ref(false)
   const loadingSessions = ref(false)
 
@@ -80,10 +82,16 @@ export function useChat() {
 
   // ==================== 工具函数 ====================
 
-  const scrollToBottom = (container: HTMLElement | undefined) => {
+  /** 智能滚动：用户已在底部附近时才自动滚，否则显示提示按钮 */
+  const scrollToBottom = (container: HTMLElement | undefined, force = false) => {
     nextTick(() => {
-      if (container) {
+      if (!container) return
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120
+      if (force || atBottom) {
         container.scrollTop = container.scrollHeight
+        showScrollHint.value = false
+      } else {
+        showScrollHint.value = true
       }
     })
   }
@@ -206,6 +214,7 @@ export function useChat() {
             })
             aiBubbleIndex = messages.value.length - 1
             _accumulated = ''
+            isThinking.value = true
 
             // 新会话 → 记录 sessionId
             if (!activeSessionId.value) {
@@ -216,6 +225,9 @@ export function useChat() {
           onChunk({ content }) {
             if (generationId !== thisGenId) return
             if (aiBubbleIndex < 0) return
+
+            // 收到第一个 token → 结束思考动画
+            if (isThinking.value) isThinking.value = false
 
             _accumulated += content
 
@@ -240,6 +252,7 @@ export function useChat() {
 
             await loadSessions()
             isGenerating.value = false
+            isThinking.value = false
             abortController = null
           },
 
@@ -261,6 +274,7 @@ export function useChat() {
 
             console.error('[Chat] 流式发送失败:', message)
             isGenerating.value = false
+            isThinking.value = false
             abortController = null
           },
         },
@@ -269,19 +283,26 @@ export function useChat() {
     } catch (err: any) {
       // AbortError → 用户主动取消，静默退出
       if (err?.name === 'AbortError') {
-        // 把 RAF 残留 flush 掉，保留已生成内容
-        if (_rafHandle && aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
+        // 取消残留 RAF，防止旧 flushChunk 在下一轮会话中覆盖错误消息
+        if (_rafHandle) {
+          cancelAnimationFrame(_rafHandle)
+          _rafHandle = 0
+        }
+        // flush 已收到的内容，保留在气泡中
+        if (aiBubbleIndex >= 0 && messages.value[aiBubbleIndex]) {
           messages.value[aiBubbleIndex] = {
             ...messages.value[aiBubbleIndex],
             content: _accumulated,
           }
         }
         isGenerating.value = false
+        isThinking.value = false
         abortController = null
         return
       }
       // 其他异常已在 onError 中处理，这里做最后兜底
       isGenerating.value = false
+      isThinking.value = false
       abortController = null
     }
   }
@@ -297,13 +318,11 @@ export function useChat() {
       lastMsg.sender === 'assistant' && lastMsg.error
 
     if (isAiError) {
-      // 删除失败的 AI 气泡，恢复用户输入，重新发送
+      // 删除失败的 AI 气泡，用原用户消息文本重新发送
       const toRetry = messages.value[messages.value.length - 2]
       if (toRetry?.sender === 'user') {
-        messages.value.pop() // 删除 AI 气泡
+        messages.value.pop() // 只删 AI 气泡，保留用户消息在列表和 DB 中
         inputText.value = toRetry.content
-        // 注意：不删除用户消息（已落库），sendMessage 新消息会追加
-        messages.value.pop() // 删除用户消息（旧气泡）
         await sendMessage()
       }
     }
@@ -374,6 +393,8 @@ export function useChat() {
     activeSessionId,
     inputText,
     isGenerating,
+    isThinking,
+    showScrollHint,
     sidebarCollapsed,
     loadingSessions,
     // 计算
