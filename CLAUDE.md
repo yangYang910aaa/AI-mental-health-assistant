@@ -30,7 +30,7 @@ Vue 3 + TypeScript + Vite 全栈项目。后端已搭建（Fastify + Prisma 7 + 
 | 框架 | Fastify 5（原生 TypeScript，零 @types/* 依赖） | ^5.8 |
 | ORM | Prisma 7 + `@prisma/adapter-mariadb` | ^7.8 |
 | 数据库 | MySQL（通过 mariadb 驱动连接） | — |
-| 认证 | JWT（`jsonwebtoken`）+ bcryptjs 密码加密 | — |
+| 认证 | JWT 双令牌（access 15min + refresh 7d rotation，SHA-256 哈希存储） + bcryptjs | — |
 | 校验 | Fastify 内置 JSON Schema | — |
 | 邮件 | nodemailer（SMTP，忘记密码发送验证码） | ^9.0 |
 
@@ -80,14 +80,14 @@ server/                                # 后端（Fastify + Prisma 7 + MySQL）
 │   │   ├── memory.ts                  # 长期记忆管理（列表/删除单条/清空，需登录）
 │   │   └── dashboard.ts               # 数据分析（KPI 聚合 + 趋势，需 admin，JS 端聚合避免 raw SQL 兼容性）
 │   ├── middleware/
-│   │   └── jwtAuth.ts                 # JWT 签发 signToken() + requireAuth（启动时检查 JWT_SECRET，缺失则抛错）
+│   │   └── jwtAuth.ts                 # JWT 双令牌：signAccessToken() 15min + generateRefreshToken() 不透明随机串 + hashRefreshToken() SHA-256 + requireAuth
 │   └── utils/
 │       ├── format.ts                  # formatDateTime() —— Date → "YYYY-MM-DD HH:mm:ss"
 │       ├── validate.ts                # parseId() —— 路径参数正整数校验（失败自动回 400）
 │       └── email.ts                   # sendResetEmail() —— nodemailer（QQ SMTP SSL，超时 10s/10s/15s）
 │   ├── ai/                            # AI 核心模块（client/context/safety/memory/prompts）
 ├── prisma/
-│   ├── schema.prisma                  # User/MoodRecord/ChatSession(pinned)/ChatMessage(flagged,Cascade)/Memory/Article，含 @@index + updatedAt
+│   ├── schema.prisma                  # User/RefreshToken/MoodRecord/ChatSession(pinned)/ChatMessage(flagged,Cascade)/Memory/Article，含 @@index + updatedAt
 │   ├── seed.ts                        # 种子：11 用户 + 15 文章 + 50 心情 + 2 会话
 │   └── migrations/                    # Prisma 迁移历史
 ├── scripts/
@@ -115,7 +115,7 @@ src/
 │   │   ├── 单泛型 API：request.get<T>() / post<T>() / put<T>() / delete<T>() / patch<T>() 只需一个泛型
 │   │   ├── BASE_URL 导出供 auth.ts validateToken 复用
 │   │   ├── HTTP 状态码驱动：后端直接使用 HTTP 200/401/403/500 等
-│   │   ├── 401 → 清 token + userInfo + replace 跳登录（并发防抖锁）
+│   │   ├── 401 → 先静默刷新（refreshPromise 单例锁）→ 成功则重放 → 失败才跳登录
 │   │   ├── 403 → 弹提示，不跳转
 │   │   ├── showError() 去重：相同文案 3 秒内不重复弹
 │   │   ├── silent 模式：传入 { silent: true } 禁用 toast，调用方自行处理
@@ -203,18 +203,22 @@ HTTP 401/403/500… → 失败分支 → 唯一错误入口
 - `showError()` 错误去重：相同文案 3 秒内只弹一个 toast
 - `silent: true` 配置：调用方可禁用 toast 自行处理（chat 发消息失败时气泡标红而非弹窗）
 - 401 并发防抖：`isRedirecting` 锁防止多个请求同时过期时重复跳转
-- `userInfo` 同步清理：401 时 token 和 userInfo 一起清，路由守卫不会读到过期角色信息
+- `userInfo` 同步清理：401 时 access token + refresh token + userInfo 一起清，路由守卫不会读到过期角色信息
+- **静默刷新机制**：access token 15 分钟过期后，Axios 拦截器自动用 refresh token 换新 token（`refreshPromise` 单例锁保证并发 401 只刷新一次），成功则重放原请求，用户完全无感
+- **refresh token rotation**：每次使用后旧 token 即时失效，新 token 签发。检测到重用（可能是被盗）时 401 拒绝
 
 ### 2. API 路径规范
 
 ```
-/api/auth/login               登录（支持用户名或邮箱）
+/api/auth/login               登录（返回 accessToken 15min + refreshToken 7d + userInfo）
 /api/auth/register            注册（邮箱必填）
-/api/auth/me                  验证 token
+/api/auth/refresh             刷新令牌（refresh token rotation，旧 token 即时失效）
+/api/auth/logout              退出登录（服务端删除 refresh token）
+/api/auth/me                  验证 access token
 /api/auth/profile             更新个人资料（昵称/头像/邮箱）
-/api/auth/password            修改密码
+/api/auth/password            修改密码（同时撤销所有 refresh token）
 /api/auth/forgot-password     忘记密码——发送 6 位验证码邮件
-/api/auth/reset-password      重置密码——验证码 + 新密码
+/api/auth/reset-password      重置密码——验证码 + 新密码（同时撤销所有 refresh token）
 /api/knowledge/articles       知识文章 CRUD
 /api/consultations/records    咨询记录 CRUD
 /api/emotional/records        情绪日志 CRUD
@@ -291,11 +295,13 @@ TRIGGER_OPTIONS    // 触发因素选项
 
 ### 5. localStorage / sessionStorage Key 约定
 
-| Key | 写方 | 读方 |
-|-----|------|------|
-| `token` | login.vue | request.ts 请求拦截器 |
-| `userInfo` | user store setUser() | user store 初始化恢复 |
-| `login:pendingEmail` (sessionStorage) | login.vue goForgot() | login.vue 初始化（保留离开前的输入） |
+| Key | 写方 | 读方 | 说明 |
+|-----|------|------|------|
+| `accessToken` | store（仅内存，不持久化） | request.ts 请求拦截器 | 15 分钟 JWT，防 XSS 窃取 |
+| `refreshToken` | user store setTokens() | request.ts 刷新逻辑、router guard 恢复 | 7 天不透明串，SHA-256 哈希存 DB，每次使用自动轮换 |
+| `userInfo` | user store setUser() | user store 初始化恢复 | 用户身份信息持久化 |
+| `login:pendingEmail` (sessionStorage) | login.vue goForgot() | login.vue 初始化（保留离开前的输入） | — |
+| `token` | 已废弃 | — | 迁移兼容：router guard 首次运行自动清除 |
 
 ### 6. 忘记密码流程
 
@@ -593,13 +599,15 @@ MemoryItem { id, content, category, createdAt }
 
 | 接口 | 方法 | 状态 |
 |------|------|------|
-| `/api/auth/login` | POST | ✅ 真实后端（MySQL 查用户 + bcrypt + JWT） |
+| `/api/auth/login` | POST | ✅ 真实后端（双令牌：accessToken 15min + refreshToken 7d SHA-256 哈希存库） |
 | `/api/auth/register` | POST | ✅ 真实后端（MySQL 写入 + 用户名去重） |
+| `/api/auth/refresh` | POST | ✅ 真实后端（refresh token rotation，O(1) SHA-256 查找，旧 token 即时失效） |
+| `/api/auth/logout` | POST | ✅ 真实后端（删除 refresh token，best-effort） |
 | `/api/auth/me` | GET | ✅ 真实后端（JWT 验证 + 返回用户信息） |
 | `/api/auth/profile` | PUT | ✅ 真实后端（需登录，更新昵称/头像/邮箱） |
-| `/api/auth/password` | PUT | ✅ 真实后端（需登录，旧密码比对 + 更新） |
+| `/api/auth/password` | PUT | ✅ 真实后端（需登录，旧密码比对 + 更新；同时撤销所有 refresh token） |
 | `/api/auth/forgot-password` | POST | ✅ 真实后端（nodemailer 发送 6 位验证码，15 分钟冷却） |
-| `/api/auth/reset-password` | POST | ✅ 真实后端（验证码 + 新密码，令牌一次性使用） |
+| `/api/auth/reset-password` | POST | ✅ 真实后端（验证码 + 新密码，令牌一次性使用；同时撤销所有 refresh token） |
 | `/api/knowledge/articles` | GET | ✅ 真实后端（分页 + title/category/status 筛选） |
 | `/api/knowledge/articles` | POST | ✅ 真实后端（admin 鉴权 + JSON Schema 校验） |
 | `/api/knowledge/articles/suggestions` | GET | ✅ 真实后端（title 模糊联想，最多 10 条） |
@@ -703,7 +711,7 @@ MemoryItem { id, content, category, createdAt }
 - **心情详情**：加 `serialize()` tags 解析 + 加载失败显示「重新加载」按钮
 - **AI 回复失败**：聊天框显示红色气泡「AI 回复生成失败，请稍后重试」
 - **个人中心合并**：`userProfile.vue` + `adminProfile.vue` → 共享 `ProfilePage.vue`
-- **auth 注释**：60s→15 分钟冷却时间
+- **JWT 单令牌 → 双令牌**：access token 15min（内存，防 XSS）+ refresh token 7d（SHA-256 哈希存库，每次轮换）。新增 `/auth/refresh` `/auth/logout` 端点，前端 401 拦截器静默刷新，密码修改/重置撤销全部 refresh token。RefreshToken 表 + 每小时过期清理
 - **file 上传**：加 `mkdirSync` + pipeline try/catch
 - **dashboard 查询**：高风险分析加 90 天时间窗口 + `take: 10000`
 - **memory createdAt**：加 `formatDateTime()` 格式化，保持 API 响应一致

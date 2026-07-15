@@ -228,6 +228,7 @@ export function useChat() {
             // 收到第一个 token → 结束思考动画
             if (isThinking.value) isThinking.value = false
 
+            //不断累加内容
             _accumulated += content
 
             // RAF 节流：同一帧内多次 chunk 只 flush 一次

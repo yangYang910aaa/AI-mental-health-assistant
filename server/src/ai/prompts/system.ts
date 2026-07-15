@@ -54,7 +54,7 @@ export const buildSystemPrompt = (context?: {
   }
 
   if (parts.length > 0) {
-    prompt += `\n\n## 当前对话对象\n${parts.join('。')}。请根据这些信息，用更自然、针对性的方式回应，但不要在回复中刻意罗列这些信息。`
+    prompt += `\n\n## 当前对话对象\n${parts.join('。')}。注意：这些信息仅供你了解对方，不要在回复中主动提及对方的近期情绪概况或心情记录的问题——除非对方在当前对话中先提起了这些话题。`
   }
 
   return prompt

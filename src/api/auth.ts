@@ -16,6 +16,14 @@ interface RegisterParams {
 }
 
 // 响应数据类型
+
+/** 后端统一响应信封——用于原生 fetch 调用的类型标注 */
+interface ApiEnvelope<T> {
+  code: number
+  data: T
+  message: string
+}
+
 export interface UserInfo {
   id: number
   username: string
@@ -26,8 +34,14 @@ export interface UserInfo {
 }
 
 interface LoginResult {
-  token: string
+  accessToken: string
+  refreshToken: string
   userInfo: UserInfo
+}
+
+interface RefreshResult {
+  accessToken: string
+  refreshToken: string
 }
 
 /** 登录接口 */
@@ -38,39 +52,57 @@ export const loginApi = (params: LoginParams) =>
 export const registerApi = (params: RegisterParams) =>
   request.post<void>('/auth/register', params)
 
-/** 验证 token 是否有效，有效则返回最新 UserInfo */
+/** 验证 access token 是否有效，有效则返回最新 UserInfo */
 export const validateToken = async (): Promise<UserInfo | null> => {
-  const token = localStorage.getItem('token')
+  const userStore = useUserStore()
+  const token = userStore.accessToken
   if (!token) return null
-  // 设置超时，防止接口因为死锁或者网络抖动导致前台卡死。
+
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000) // 设置 5 秒超时
+  const timeoutId = setTimeout(() => controller.abort(), 5000)
   try {
-    //用原生的fetch，不用封装的request.ts。防止因为token过期导致的router状态混乱
+    // 使用原生 fetch，不用封装的 request.ts，防止 token 过期触发拦截器的 401 刷新循环
     const res = await fetch(`${BASE_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     })
     clearTimeout(timeoutId)
     if (!res.ok) return null
-    const body = await res.json()
+    const body: ApiEnvelope<UserInfo> = await res.json()
     if (body.code !== 200) return null
-    // 同步更新 localStorage 中的 userInfo（fetch 的 .json() 返回 any，需显式标注转换边界）
-    const data = body.data as unknown as UserInfo
-    const userStore = useUserStore()
-    userStore.setUser(data)
-    return data
-  } catch{
+    userStore.setUser(body.data)
+    return body.data
+  } catch {
     clearTimeout(timeoutId)
     return null
   }
 }
 
-/** 退出登录：清除本地状态 + 跳转登录页 */
-export const logout = () => {
+/** 刷新令牌 —— 用 refresh token 换新的 access + refresh token */
+export const refreshTokenApi = async (refreshToken: string): Promise<RefreshResult> => {
+  const res = await fetch(`${BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
+  if (!res.ok) throw new Error('refresh failed')
+  const body: ApiEnvelope<RefreshResult> = await res.json()
+  if (body.code !== 200) throw new Error(body.message || 'refresh failed')
+  return body.data
+}
+
+/** 通知后端撤销 refresh token（best-effort，失败不阻塞） */
+export const logoutApi = (refreshToken: string) =>
+  request.post<void>('/auth/logout', { refreshToken }, { silent: true }).catch(() => {})
+
+/** 退出登录：通知后端 + 清除本地状态 + 跳转登录页 */
+export const logout = async () => {
   const userStore = useUserStore()
-  userStore.clearUser()
-  localStorage.removeItem('token')
+  const rt = localStorage.getItem('refreshToken')
+  if (rt) {
+    await logoutApi(rt)
+  }
+  userStore.clearAll()
   window.location.href = '/auth/login'
 }
 

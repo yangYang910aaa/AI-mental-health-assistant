@@ -1,5 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
+import crypto from 'node:crypto'
 
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
@@ -13,9 +14,23 @@ export interface JwtPayload {
   role: string
 }
 
-/** 签发 token, 过期时间为 7 天 */
-export const signToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+// ==================== Access token（短命 JWT） ====================
+
+/** 签发 access token，过期时间 15 分钟 */
+export const signAccessToken = (payload: JwtPayload): string => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' })
+}
+
+// ==================== Refresh token（不透明随机串） ====================
+
+/** 生成 refresh token —— 32 字节密码学随机数的 hex 编码（64 字符） */
+export const generateRefreshToken = (): string => {
+  return crypto.randomBytes(32).toString('hex')
+}
+
+/** 对 refresh token 做 SHA-256 哈希，存入数据库用（O(1) 查找 + 防 DB 泄露） */
+export const hashRefreshToken = (token: string): string => {
+  return crypto.createHash('sha256').update(token).digest('hex')
 }
 
 /**

@@ -136,8 +136,8 @@ const handleLogin = async () => {
       username: formData.username,
       password: formData.password,
     })
-    // 保存 token 和用户信息，跳转目标页面
-    localStorage.setItem('token', result.token)
+    // 保存双令牌和用户信息，跳转目标页面
+    userStore.setTokens(result.accessToken, result.refreshToken)
     userStore.setUser(result.userInfo)
     const redirect = route.query.redirect as string | undefined
     if (redirect && (redirect.startsWith('/back') || redirect.startsWith('/user'))) {

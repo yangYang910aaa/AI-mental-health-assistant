@@ -74,6 +74,18 @@ await app.listen({ port: PORT, host: '0.0.0.0' })
 console.log(`后端已启动 → http://localhost:${PORT}`)
 console.log(`数据库地址 → ${process.env.DATABASE_URL?.replace(/\/\/.*@/, '//***@') || '未配置'}`)
 
+// ==================== 定时清理过期 refresh token ====================
+setInterval(async () => {
+  try {
+    const { count } = await prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    })
+    if (count > 0) {
+      console.log(`🧹 清理 ${count} 条过期 refresh token`)
+    }
+  } catch {} // 静默
+}, 60 * 60 * 1000) // 每小时
+
 // ==================== 优雅关闭 ====================
 const shutdown = async (signal: string) => {
   console.log(`\n收到 ${signal}，正在关闭...`)

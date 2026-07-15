@@ -12,6 +12,7 @@ async function main() {
   await prisma.chatMessage.deleteMany()
   await prisma.chatSession.deleteMany()
   await prisma.moodRecord.deleteMany()
+  await prisma.refreshToken.deleteMany()
   await prisma.article.deleteMany()
   await prisma.user.deleteMany()
 
@@ -20,6 +21,7 @@ async function main() {
   await prisma.$executeRawUnsafe('ALTER TABLE MoodRecord AUTO_INCREMENT = 1')
   await prisma.$executeRawUnsafe('ALTER TABLE ChatSession AUTO_INCREMENT = 1')
   await prisma.$executeRawUnsafe('ALTER TABLE ChatMessage AUTO_INCREMENT = 1')
+  await prisma.$executeRawUnsafe('ALTER TABLE RefreshToken AUTO_INCREMENT = 1')
   console.log('  ✓ 清空所有表，重置自增 ID\n')
 
   // ==================== 用户（1 admin + 10 普通用户） ====================
@@ -27,22 +29,22 @@ async function main() {
   const adminHash = await bcrypt.hash('admin123', 10)
 
   const userDefs = [
-    { username: 'admin',    passwordHash: adminHash, nickname: '管理员', role: 'admin' },
-    { username: 'xiaoming', passwordHash: hash,    nickname: '小明',   role: 'user' },
-    { username: 'ahua',     passwordHash: hash,      nickname: '阿花',   role: 'user' },
-    { username: 'daliu',    passwordHash: hash,      nickname: '大刘',   role: 'user' },
-    { username: 'xiaomei',  passwordHash: hash,      nickname: '小美',   role: 'user' },
-    { username: 'laozhang', passwordHash: hash,      nickname: '老张',   role: 'user' },
-    { username: 'jingjing', passwordHash: hash,      nickname: '静静',   role: 'user' },
-    { username: 'ajie',     passwordHash: hash,      nickname: '阿杰',   role: 'user' },
-    { username: 'xiaoqi',   passwordHash: hash,      nickname: '小七',   role: 'user' },
-    { username: 'muzi',     passwordHash: hash,      nickname: '木子',   role: 'user' },
-    { username: 'yuanyuan', passwordHash: hash,      nickname: '圆圆',   role: 'user' },
+    { username: 'admin',    passwordHash: adminHash, nickname: '管理员', role: 'admin', email: 'admin@example.com' },
+    { username: 'xiaoming', passwordHash: hash,    nickname: '小明',   role: 'user', email: 'xiaoming@example.com' },
+    { username: 'ahua',     passwordHash: hash,      nickname: '阿花',   role: 'user', email: 'ahua@example.com' },
+    { username: 'daliu',    passwordHash: hash,      nickname: '大刘',   role: 'user', email: 'daliu@example.com' },
+    { username: 'xiaomei',  passwordHash: hash,      nickname: '小美',   role: 'user', email: 'xiaomei@example.com' },
+    { username: 'laozhang', passwordHash: hash,      nickname: '老张',   role: 'user', email: 'laozhang@example.com' },
+    { username: 'jingjing', passwordHash: hash,      nickname: '静静',   role: 'user', email: 'jingjing@example.com' },
+    { username: 'ajie',     passwordHash: hash,      nickname: '阿杰',   role: 'user', email: 'ajie@example.com' },
+    { username: 'xiaoqi',   passwordHash: hash,      nickname: '小七',   role: 'user', email: 'xiaoqi@example.com' },
+    { username: 'muzi',     passwordHash: hash,      nickname: '木子',   role: 'user', email: 'muzi@example.com' },
+    { username: 'yuanyuan', passwordHash: hash,      nickname: '圆圆',   role: 'user', email: 'yuanyuan@example.com' },
   ]
 
   const users: Array<{ id: number; nickname: string; role: string }> = []
   for (const u of userDefs) {
-    const created = await prisma.user.create({ data: u })
+    const created = await prisma.user.create({ data: { ...u, updatedAt: new Date() } })
     users.push({ id: created.id, nickname: created.nickname ?? u.username, role: created.role })
   }
   console.log(`  ✓ 创建 ${users.length} 个用户: ${users.map((u) => `${u.nickname}(${u.role})`).join(', ')}\n`)

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/user'
 
 // ==================== 错误去重 ====================
 
@@ -46,30 +47,67 @@ interface SilentConfig extends AxiosRequestConfig {
   silent?: boolean
 }
 
+/** 内部用：在 SilentConfig 基础上增加重试标记 */
+interface RetryableConfig extends InternalAxiosRequestConfig {
+  silent?: boolean
+  _retry?: boolean
+}
+
+/** 刷新令牌接口的返回类型 */
+interface TokenPair {
+  accessToken: string
+  refreshToken: string
+}
+
 // ==================== 401 处理 ====================
 
 /** 防抖锁：正在跳转登录页时，后续 401 不再重复触发 */
 let isRedirecting = false
 
+/** 清除所有认证状态并跳转登录页 */
+const clearAllAndRedirect = () => {
+  useUserStore().clearAll()
+
+  if (!isRedirecting) {
+    isRedirecting = true
+    window.location.replace('/auth/login')
+  }
+}
+
 /**
- * 处理未授权状态（登录过期 / token 无效）
- * - 清除本地 token
- * - 跳转登录页（用 replace 语义，登录页不应出现在后退历史里）
- * - 并发请求同时 401 时只跳一次
+ * 处理未授权状态（登录过期 / token 无效），不再尝试刷新
+ * - 清除所有 auth 状态
+ * - 跳转登录页
  * - 始终返回 rejected Promise
  */
 const handleUnauthorized = (message = '登录已过期，请重新登录'): Promise<never> => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('userInfo')
-
-  // 并发 401 防抖：同一时刻多个请求同时过期，只跳一次
-  if (!isRedirecting) {
-    isRedirecting = true
-    //不用router.push，因为会触发beforeEach，进而可能调用validateToken，再次触发401，导致循环跳转，路由状态混乱
-    window.location.replace('/auth/login')
-  }
-
+  clearAllAndRedirect()
   return Promise.reject(new BusinessError(401, message))
+}
+
+// ==================== Token 刷新 ====================
+
+/** 正在进行的刷新请求（单例锁：多个并发 401 共用同一个 Promise） */
+let refreshPromise: Promise<TokenPair> | null = null
+
+/** 调用 /api/auth/refresh，用原生 axios 实例（不走拦截器，避免递归） */
+const tryRefresh = async (): Promise<TokenPair> => {
+  const existingRefreshToken = localStorage.getItem('refreshToken')
+  if (!existingRefreshToken) throw new Error('No refresh token')
+
+  const res = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken: existingRefreshToken })
+  const data = res.data as TokenPair
+
+  useUserStore().setTokens(data.accessToken, data.refreshToken)
+  return data
+}
+
+/** 获取当前 access token（优先内存 store，fallback 旧 key 用于平滑迁移） */
+const getAccessToken = (): string | null => {
+  const token = useUserStore().accessToken
+  if (token) return token
+  // 迁移兼容：旧单令牌方案的 key
+  return localStorage.getItem('token')
 }
 
 // ==================== HTTP 错误处理 ====================
@@ -118,7 +156,7 @@ const http: AxiosInstance = axios.create({
 
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token')
+    const token = getAccessToken()
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -168,14 +206,38 @@ http.interceptors.response.use(
 
   // ———————————— 失败分支：HTTP 非 2xx / 网络错误 / 超时 ————————————
   // 所有异常都由 HTTP 状态码表达，这里是唯一的错误处理入口
-  (error) => {
+  async (error) => {
     const silent = (error.config as SilentConfig)?.silent
     const status = error?.response?.status
 
-    // 401 → 登录过期 / token 无效，清 token + 跳转
-    // 但登录接口本身的 401（密码错误）不能跳，要显示错误消息
-    if (status === 401 && error.config?.url !== '/auth/login') {
-      return handleUnauthorized()
+    // 401 → 先尝试静默刷新，刷新失败再跳登录
+    // 但登录接口本身的 401（密码错误）和 refresh 接口（自己过期）不能进入刷新循环
+    if (status === 401
+      && error.config?.url !== '/auth/login'
+      && error.config?.url !== '/auth/refresh'
+    ) {
+      // 已经重试过一次了 → 不再尝试刷新，直接跳登录
+      if ((error.config as RetryableConfig)._retry) {
+        return handleUnauthorized()
+      }
+
+      try {
+        // 并发锁：多个 401 共用同一个 refreshPromise
+        if (!refreshPromise) {
+          refreshPromise = tryRefresh().finally(() => { refreshPromise = null })
+        }
+        const { accessToken } = await refreshPromise
+
+        // 用新 access token 重放原请求
+        const cfg = error.config as RetryableConfig
+        cfg._retry = true
+        cfg.headers!.Authorization = `Bearer ${accessToken}`
+        return http(cfg)
+      } catch {
+        // 刷新失败 → 清空所有状态 → 跳登录
+        refreshPromise = null
+        return handleUnauthorized()
+      }
     }
 
     // 403 → 有权限但不够，弹提示，不跳转

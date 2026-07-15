@@ -1,5 +1,6 @@
 import { createRouter,createWebHistory } from "vue-router";
-import { validateToken } from '@/api/auth'
+import { validateToken, refreshTokenApi } from '@/api/auth'
+import { useUserStore } from '@/stores/user'
 
 // 路由名称常量，方便全局引用和跳转
 export const ROUTE_NAMES = {
@@ -186,28 +187,50 @@ let tokenChecked = false
 let tokenValid = false
 
 router.beforeEach(async (to, _from, next) => {
-  const token = localStorage.getItem('token')
+  const userStore = useUserStore()
 
-  // —— 首次进入时，向后端验证 token ——
-  if (token && !tokenChecked) {
-    const userInfo = await validateToken()
+  // —— 首次进入时，尝试恢复认证状态 ——
+  if (!tokenChecked) {
     tokenChecked = true
-    tokenValid = !!userInfo
-    if (!tokenValid) {
-      // token 无效，清掉残留
+
+    // 迁移清理：移除旧单令牌方案的 key
+    if (localStorage.getItem('token')) {
       localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
+    }
+
+    // 有 accessToken → 直接验证
+    if (userStore.accessToken) {
+      const userInfo = await validateToken()
+      tokenValid = !!userInfo
+    }
+
+    // 无 accessToken 但有 refreshToken → 尝试静默恢复
+    if (!tokenValid) {
+      const refreshToken = localStorage.getItem('refreshToken')
+      if (refreshToken) {
+        try {
+          const result = await refreshTokenApi(refreshToken)
+          userStore.setTokens(result.accessToken, result.refreshToken)
+          // 用新 accessToken 验证用户信息
+          const userInfo = await validateToken()
+          tokenValid = !!userInfo
+        } catch {
+          userStore.clearAll()
+          tokenValid = false
+        }
+      }
     }
   }
 
   // 统一拦截需要登录的页面
-  if(to.matched.some(record=>record.meta.requiresAuth)){
-    if(!tokenValid && !token){
-      return next({name:ROUTE_NAMES.login,query:{redirect:to.fullPath}})
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    if (!tokenValid && !userStore.accessToken && !localStorage.getItem('refreshToken')) {
+      return next({ name: ROUTE_NAMES.login, query: { redirect: to.fullPath } })
     }
   }
+
   // —— /auth/* 认证路由：已登录则按角色分流 ——
-  if (to.path.startsWith('/auth') && token && tokenValid) {
+  if (to.path.startsWith('/auth') && tokenValid) {
     try {
       const raw = localStorage.getItem('userInfo')
       const userInfo = raw ? (JSON.parse(raw) as Record<string, unknown> | null) : null

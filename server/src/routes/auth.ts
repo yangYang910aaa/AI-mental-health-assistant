@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { prisma } from '../db.js'
-import { signToken, requireAuth } from '../middleware/jwtAuth.js'
+import { signAccessToken, generateRefreshToken, hashRefreshToken, requireAuth } from '../middleware/jwtAuth.js'
 import { sendResetEmail } from '../utils/email.js'
 
 //验证邮箱格式是否正确
@@ -33,6 +33,21 @@ const registerBodySchema = {
   },
 } as const
 
+const refreshBodySchema = {
+  type: 'object',
+  required: ['refreshToken'],
+  properties: {
+    refreshToken: { type: 'string', minLength: 1 },
+  },
+} as const
+
+const logoutBodySchema = {
+  type: 'object',
+  properties: {
+    refreshToken: { type: 'string' },
+  },
+} as const
+
 // ==================== 路由注册 ====================
 
 export async function authRoutes(app: FastifyInstance) {
@@ -55,15 +70,27 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(401).send({ code: 401, message: '账号或密码错误', data: null })
     }
 
-    // 3.签发 token:根据用户ID和角色生成 JWT
-    const token = signToken({ userId: user.id, role: user.role })
+    // 3. 签发双令牌
+    const accessToken = signAccessToken({ userId: user.id, role: user.role })
+    const rawRefreshToken = generateRefreshToken()
+    const refreshTokenHash = hashRefreshToken(rawRefreshToken)
 
-    // 4.返回 token 和用户信息
+    // 保存 refresh token 到数据库（只存 hash，不存明文）
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: refreshTokenHash,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 天
+      },
+    })
+
+    // 4. 返回双令牌 + 用户信息
     return reply.send({
       code: 200,
       message: 'ok',
       data: {
-        token,
+        accessToken,
+        refreshToken: rawRefreshToken,      // ← 明文只在这一次返回，之后不可获取
         userInfo: {
           id: user.id,
           username: user.username,
@@ -74,6 +101,67 @@ export async function authRoutes(app: FastifyInstance) {
         },
       },
     })
+  })
+
+  // ========== 刷新令牌 /api/auth/refresh ==========
+  app.post('/api/auth/refresh', { schema: { body: refreshBodySchema } }, async (request, reply) => {
+    const { refreshToken } = request.body as { refreshToken: string }
+    if (!refreshToken) {
+      return reply.status(400).send({ code: 400, message: '缺少刷新令牌', data: null })
+    }
+
+    // 1. SHA-256 哈希后直接 DB 精确查找
+    const tokenHash = hashRefreshToken(refreshToken)
+    const stored = await prisma.refreshToken.findUnique({ where: { token: tokenHash } })
+
+    // 2. 不存在或已过期 → 拒绝
+    if (!stored || stored.expiresAt < new Date()) {
+      if (stored) {
+        await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {})
+      }
+      await sleep(200 + Math.random() * 300)
+      return reply.status(401).send({ code: 401, message: '令牌无效或已过期', data: null })
+    }
+
+    // 3. 查用户是否仍然存在
+    const user = await prisma.user.findUnique({ where: { id: stored.userId } })
+    if (!user) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } })
+      return reply.status(401).send({ code: 401, message: '用户不存在', data: null })
+    }
+
+    // 4. 轮换（rotation）：删旧 + 发新
+    await prisma.refreshToken.delete({ where: { id: stored.id } })
+
+    const newRawToken = generateRefreshToken()
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: hashRefreshToken(newRawToken),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    })
+
+    const newAccessToken = signAccessToken({ userId: user.id, role: user.role })
+
+    return reply.send({
+      code: 200,
+      message: 'ok',
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRawToken,
+      },
+    })
+  })
+
+  // ========== 退出登录 /api/auth/logout ==========
+  app.post('/api/auth/logout', { schema: { body: logoutBodySchema } }, async (request, reply) => {
+    const { refreshToken } = request.body as { refreshToken: string }
+    if (refreshToken) {
+      const tokenHash = hashRefreshToken(refreshToken)
+      await prisma.refreshToken.deleteMany({ where: { token: tokenHash } })
+    }
+    return reply.send({ code: 200, message: 'ok', data: null })
   })
 
   // ========== 注册接口 /api/auth/register ==========
@@ -226,6 +314,9 @@ export async function authRoutes(app: FastifyInstance) {
     const passwordHash = await bcrypt.hash(newPassword, 10)
     await prisma.user.update({ where: { id: user.userId }, data: { passwordHash } })
 
+    // 密码修改后强制所有设备重新登录
+    await prisma.refreshToken.deleteMany({ where: { userId: user.userId } })
+
     return reply.send({ code: 200, message: '密码修改成功', data: null })
   })
 
@@ -303,6 +394,9 @@ export async function authRoutes(app: FastifyInstance) {
       where: { id: user.id },
       data: { passwordHash, resetToken: null, resetTokenExp: null },
     })
+
+    // 重置密码后强制所有设备重新登录
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } })
 
     return reply.send({ code: 200, message: '密码已重置，请登录', data: null })
   })

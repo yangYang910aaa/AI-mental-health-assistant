@@ -1,5 +1,7 @@
 import request from '@/utils/request'
 import { parseSSEStream } from '@/utils/sse'
+import { useUserStore } from '@/stores/user'
+import { refreshTokenApi } from '@/api/auth'
 
 // ==================== 类型定义 ====================
 
@@ -107,7 +109,7 @@ export const sendMessageStream = async (
   signal?: AbortSignal,
   deepThinking = false,
 ): Promise<void> => {
-  const token = localStorage.getItem('token')
+  const token = useUserStore().accessToken
 
   // ===== 1. 发起请求 =====
   let response: Response
@@ -130,11 +132,22 @@ export const sendMessageStream = async (
 
   // ===== 2. HTTP 错误 =====
   if (!response.ok) {
-    // 401 → token 过期，清状态 + 跳登录页
+    // 401 → 先尝试静默刷新，刷新失败再跳登录页
     if (response.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
-      window.location.replace('/auth/login')
+      const rt = localStorage.getItem('refreshToken')
+      if (rt) {
+        try {
+          const result = await refreshTokenApi(rt)
+          useUserStore().setTokens(result.accessToken, result.refreshToken)
+          callbacks.onError('令牌已过期，请重试')
+        } catch {
+          useUserStore().clearAll()
+          window.location.replace('/auth/login')
+        }
+      } else {
+        useUserStore().clearAll()
+        window.location.replace('/auth/login')
+      }
       return
     }
 

@@ -23,6 +23,21 @@ model User {
   moods          MoodRecord[]
   chatSessions   ChatSession[]
   memories       Memory[]
+  refreshTokens  RefreshToken[]
+}
+
+// ==================== 刷新令牌（JWT 双令牌方案） ====================
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique @db.VarChar(64)   // SHA-256 hash，64 字符 hex
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ==================== 心情记录 ====================
